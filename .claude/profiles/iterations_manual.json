@@ -1,0 +1,34 @@
+{
+  "iterations": [
+    {
+      "title": "Iteration 1",
+      "prompt": "",
+      "enabled": true,
+      "implementation_mode": "auto"
+    },
+    {
+      "title": "Iteration 2",
+      "prompt": "",
+      "enabled": true,
+      "implementation_mode": "auto"
+    },
+    {
+      "title": "Iteration 3",
+      "prompt": "",
+      "enabled": true,
+      "implementation_mode": "auto"
+    },
+    {
+      "title": "Iteration 4",
+      "prompt": "",
+      "enabled": true,
+      "implementation_mode": "auto"
+    },
+    {
+      "title": "Iteration 5",
+      "prompt": "",
+      "enabled": true,
+      "implementation_mode": "auto"
+    }
+  ]
+}

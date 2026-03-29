@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <plurals name="settings_progress_bar_height_value">
+        <item quantity="one">%d dp</item>
+        <item quantity="other">%d dp</item>
+    </plurals>
+</resources>

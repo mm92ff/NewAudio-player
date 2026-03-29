@@ -1,0 +1,44 @@
+# Built artifacts
+*.apk
+*.aab
+*.ap_
+*.idsig
+*.dex
+
+# Build outputs
+build/
+app/build/
+
+# Gradle
+.gradle/
+gradle-wrapper.jar
+
+# Local configuration (contains SDK path, signing passwords, etc.)
+local.properties
+keystore.properties
+*.jks
+*.keystore
+
+# IDE files
+.idea/
+*.iml
+.DS_Store
+
+# Kotlin cache
+.kotlin/
+
+# Android Studio
+captures/
+.externalNativeBuild/
+.cxx/
+
+# Profiling
+out/
+
+# Navigation args (generated)
+app/src/main/java/**/NavArgs*.kt
+
+# Workflow runtime (not source)
+workflow/runtime/
+workflow/reports/
+workflow/research/

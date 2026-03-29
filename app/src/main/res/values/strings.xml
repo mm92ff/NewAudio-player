@@ -1,0 +1,244 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">NewAudio</string>
+
+    <string name="permissions_required">Permissions required</string>
+    <string name="permissions_rationale">This app needs access to your audio files to play music, and notification permissions for playback controls. Please grant these permissions to continue.</string>
+    <string name="grant_permissions">Grant permissions</string>
+    <string name="permission_open_settings">Open settings</string>
+    <string name="permission_folder_icon_content_description">Folder icon</string>
+    <string name="storage_permission_required">Storage permission required</string>
+    <string name="storage_permission_rationale">This app needs access to your audio files to play music. Please grant storage permission.</string>
+    <string name="manage_storage_permission_rationale">For Android 11+ the \"Manage all files\" permission is additionally required. Please enable it in settings.</string>
+    <string name="go_to_settings">Go to settings</string>
+    <string name="restart_app_hint">Please restart the app after granting the permission.</string>
+    <string name="permission_manage_storage_instructions">Please go to \'Permissions\' → \'Files and media\' and select \'Allow all files\'. Then restart the app.</string>
+    <string name="check_permissions">Check permissions</string>
+    <string name="close_app">Close app</string>
+    <string name="close">Close</string>
+
+    <string name="rename">Rename</string>
+    <string name="rename_dialog_title">Rename file</string>
+    <string name="new_name">New name</string>
+    <string name="delete">Delete</string>
+    <string name="delete_confirmation_title">Delete file</string>
+    <string name="delete_confirmation_message">Are you sure you want to delete \"%1$s\"? This action cannot be undone.</string>
+    <string name="cancel">Cancel</string>
+    <string name="save">Save</string>
+    <string name="copy">Copy</string>
+    <string name="move">Move</string>
+    <string name="duplicate">Duplicate</string>
+
+    <string name="album_art">Album Art</string>
+    <string name="player_album_art_content_description">Album art</string>
+    <string name="player_album_art_placeholder_icon">Album art placeholder</string>
+    <string name="no_song_selected">No track selected</string>
+    <string name="unknown_artist">Unknown artist</string>
+    <string name="unknown_title">Unknown title</string>
+    <string name="back">Back</string>
+    <string name="play_pause">Play/Pause</string>
+    <string name="next">Next</string>
+    <string name="previous">Previous</string>
+    <string name="shuffle">Shuffle</string>
+    <string name="repeat">Repeat</string>
+
+    <string name="equalizer">Equalizer</string>
+    <string name="eq_preset_custom">Custom</string>
+    <string name="eq_preset_normal">Normal</string>
+    <string name="eq_preset_flat">Flat</string>
+    <string name="eq_preset_bass">Bass Boost</string>
+    <string name="eq_preset_pop">Pop</string>
+    <string name="eq_preset_classic">Classic</string>
+    <string name="eq_preset_classical">Classical</string>
+    <string name="eq_preset_rock">Rock</string>
+    <string name="eq_preset_jazz">Jazz</string>
+    <string name="eq_preset_vocal">Vocal</string>
+
+    <string name="eq_hz_format">%1$d Hz</string>
+    <string name="eq_db_format">%1$d dB</string>
+
+    <string name="settings">Settings</string>
+    <string name="settings_show_error_console_icon">Error console icon</string>
+    <string name="settings_reset_database_icon">Reset database icon</string>
+    <string name="settings_music_folder_icon">Music folder icon</string>
+    <string name="settings_edit_music_folder_icon">Edit music folder icon</string>
+    <string name="settings_show_hidden_files_title">Show hidden files</string>
+    <string name="settings_show_hidden_files_desc">Show files and folders that start with a dot.</string>
+    <string name="kill_app">Force close app</string>
+    <string name="theme">Theme</string>
+    <string name="primary_color">Primary color</string>
+    <string name="theme_light">Light</string>
+    <string name="theme_dark">Dark</string>
+    <string name="theme_system">System</string>
+    <string name="background_tint_title">Background tint</string>
+    <string name="background_tint_desc">Blends the primary color into the background (0%% = no tint, 30%% = strong)</string>
+    <string name="background_gradient_title">Background gradient</string>
+    <string name="background_gradient_desc">Top: no tint, bottom: with tint</string>
+    <string name="transparent_list_items_title">Transparent list items</string>
+    <string name="transparent_list_items_desc">Background of songs and folders transparent (gradient visible)</string>
+    <string name="settings_card_appearance_title">Cards &amp; Buttons</string>
+    <string name="settings_card_transparent_title">Transparent background</string>
+    <string name="settings_card_transparent_desc">Background of cards and buttons transparent</string>
+    <string name="settings_card_border_width_title">Border width</string>
+    <string name="settings_card_border_width_value">%1$d dp</string>
+    <string name="settings_card_border_color_title">Border color</string>
+    <string name="mini_player_progress_bar_height">Progress bar height (Mini Player)</string>
+    <string name="full_screen_player_progress_bar_height">Progress bar height (Full Screen Player)</string>
+
+    <string name="autoplay_bluetooth">Bluetooth Autoplay</string>
+    <string name="autoplay_bluetooth_desc">Automatically starts playback when Bluetooth headphones are connected.</string>
+
+    <string name="one_handed_mode">One-handed mode</string>
+    <string name="one_handed_mode_desc">Shows lists from bottom to top for easier one-handed use.</string>
+
+    <string name="use_marquee">Use marquee</string>
+    <string name="use_marquee_desc">Animates long song titles as scrolling text to display them fully.</string>
+
+    <string name="browser">Browser</string>
+    <string name="more_options">More options</string>
+    <string name="music_folder">Music folder</string>
+    <string name="select_music_folder">Select music folder</string>
+    <string name="change_folder">Change folder</string>
+    <string name="music_folder_hint">Leave empty to browse all folders</string>
+    <string name="default_music_folder">Default music folder</string>
+    <string name="downloads_folder">Downloads</string>
+    <string name="all_folders">All folders</string>
+    <string name="custom_folder_path">Custom path</string>
+    <string name="selected_path">Selected: %s</string>
+    <string name="empty_folder">Folder is empty</string>
+    <string name="no_audio_files">No audio files found</string>
+    <string name="select_other_folder">Select a different music folder in settings</string>
+    <string name="loading">Loading\u2026</string>
+    <string name="retry">Retry</string>
+    <string name="error_loading">Error loading</string>
+    <string name="unknown_error">Unknown error</string>
+    <string name="error_prefix">Error: </string>
+    <string name="error_rename_failed">File rename failed.</string>
+    <string name="error_delete_failed">File deletion failed.</string>
+    <string name="error_saf_required">A music folder must be manually selected in settings for this action.</string>
+    <string name="reorder_up">Move up</string>
+    <string name="reorder_down">Move down</string>
+    <string name="reorder_done">Done</string>
+    <string name="song_meta_format">%1$s • %2$s</string>
+    <string name="folder_description">Folder: %1$s</string>
+    <string name="file_description">File: %1$s</string>
+    <string name="paste">Paste</string>
+    <string name="paste_copy">Paste copy</string>
+    <string name="paste_move">Paste moved file</string>
+    <string name="cancel_clipboard">Cancel action</string>
+    <string name="file_browser_toggle_repeat">Toggle repeat</string>
+
+    <string name="developer_options">Developer options</string>
+    <string name="show_error_console">Show error console</string>
+    <string name="reset_database">Reset database</string>
+    <string name="reset_database_title">Reset database?</string>
+    <string name="reset_database_confirmation">All song data will be deleted and rescanned. This may take some time.</string>
+    <string name="confirm">Confirm</string>
+
+    <string name="playing">Playing</string>
+    <string name="paused">Paused</string>
+    <string name="stopped">Stopped</string>
+    <string name="buffering">Buffering\u2026</string>
+
+    <string name="notification_channel_name">Music playback</string>
+    <string name="notification_channel_description">Notifications for music playback and controls</string>
+    <string name="notification_title">NewAudio</string>
+    <string name="notification_content">Listening to music</string>
+
+    <string name="error_file_not_found">File not found</string>
+    <string name="error_permission_denied">Permission denied</string>
+    <string name="error_storage_unavailable">Storage unavailable</string>
+    <string name="error_network">Network error</string>
+    <string name="error_unknown_format">Unknown audio format</string>
+
+    <string name="success_file_deleted">File deleted successfully</string>
+    <string name="success_file_renamed">File renamed successfully</string>
+    <string name="success_folder_changed">Music folder changed successfully</string>
+
+    <string name="metadata_dialog_title">Metadata</string>
+    <string name="metadata_not_available">Not available</string>
+
+    <string name="console_title">Console</string>
+    <string name="console_copy_logs_description">Copy logs</string>
+    <string name="console_clear_description">Clear console</string>
+    <string name="console_close_description">Close console</string>
+    <string name="console_logs_copied_toast">Logs copied to clipboard</string>
+    <string name="console_clipboard_label">Error logs</string>
+    <string name="console_no_logs">No logs matching the filters.</string>
+
+    <plurals name="folder_items_count">
+        <item quantity="one">%1$d item</item>
+        <item quantity="other">%1$d items</item>
+    </plurals>
+
+    <plurals name="folder_song_count">
+        <item quantity="one">%1$d song</item>
+        <item quantity="other">%1$d songs</item>
+    </plurals>
+
+    <string name="setup_music_folder_title">Select music folder</string>
+    <string name="setup_music_folder_desc">To allow this app to manage (delete, rename) and play music files, you need to grant it access to your music folder.</string>
+    <string name="setup_music_folder_skip_info">You can skip this step. Note that you will not be able to delete or rename files. You can set the folder at any time later in settings.</string>
+    <string name="skip">Skip</string>
+
+    <string name="play_on_folder_click">Tap folder to play</string>
+    <string name="play_on_folder_click_description">Starts playback of all songs in a folder when the folder is tapped.</string>
+
+    <string name="show_folder_song_count">Show song count in folder</string>
+    <string name="show_folder_song_count_description">Shows the number of audio files below the folder name.</string>
+
+    <string name="show_hidden_files">Show hidden files</string>
+    <string name="show_hidden_files_desc">Show files and folders that start with a dot.</string>
+    <string name="no_media_selected">No track selected</string>
+
+    <!-- Playlist & Export -->
+    <string name="playlists">Backup</string>
+    <string name="backup_description">Back up or restore playlists &amp; settings</string>
+    <string name="playlist_create">Create playlist</string>
+    <string name="playlist_create_new">Create new playlist</string>
+    <string name="playlist_name">Playlist name</string>
+    <string name="playlist_edit">Edit playlist</string>
+    <string name="playlist_delete">Delete playlist</string>
+    <string name="playlist_empty">No playlists yet</string>
+    <string name="add_to_playlist">Add to playlist</string>
+    <string name="export_playlists">Export</string>
+    <string name="import_playlists">Import</string>
+    <string name="export_success">Playlists exported successfully</string>
+    <string name="import_success">Import complete: %1$d playlists restored</string>
+    <string name="import_summary_detail">%1$d songs found, %2$d relocated songs fixed, %3$d songs not found.</string>
+    <string name="playlist_icon_description">Open playlist manager</string>
+
+    <!-- Playlist Actions -->
+    <string name="playlist_created">Playlist \'%1$s\' created</string>
+    <string name="playlist_rename_failed">Rename failed</string>
+    <string name="playlist_deleted">Playlist deleted</string>
+    <string name="playlist_delete_failed">Delete failed</string>
+    <string name="playlist_duplicated">Playlist duplicated</string>
+    <string name="playlist_duplicate_failed">Duplicate failed</string>
+    <string name="playlist_remove_song_failed">Could not remove song</string>
+    <string name="playlist_is_empty">Playlist is empty</string>
+    <string name="playlist_selected_deleted">%1$d items removed from playlist</string>
+    <string name="playlist_selected_delete_failed">Error deleting selection</string>
+    <string name="playlist_move_failed">Move failed</string>
+    <string name="error_with_message">Error: %1$s</string>
+
+    <!-- Accessibility -->
+    <string name="seek_bar_description">Playback position</string>
+
+    <!-- File Operations -->
+    <string name="copy_failed">Error saving file (copy failed).</string>
+    <string name="import_completed_with_missing">Import complete:\n✅ %1$d playlists created\n🔍 %2$d songs found\n⚠️ %3$d songs not found (path changed?)</string>
+
+    <!-- Edit Mode / Multi-Select -->
+    <string name="edit_mode">Edit mode</string>
+    <string name="selected_count">%1$d selected</string>
+    <string name="delete_multiple_confirmation_title">Delete files</string>
+    <string name="select_all">Select all</string>
+
+
+    <plurals name="delete_multiple_confirmation_message">
+        <item quantity="one">Are you sure you want to delete %1$d file?</item>
+        <item quantity="other">Are you sure you want to delete %1$d files?</item>
+    </plurals>
+
+</resources>

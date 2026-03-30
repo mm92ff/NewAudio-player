@@ -15,6 +15,7 @@ import javax.inject.Inject
 sealed interface PermissionUiState {
     data object Loading : PermissionUiState
     data class Success(val isMusicFolderSet: Boolean) : PermissionUiState
+    data class Error(val message: String) : PermissionUiState
 }
 
 @HiltViewModel
@@ -39,7 +40,11 @@ class PermissionViewModel @Inject constructor(
     fun onMusicFolderSelected(path: String) {
         viewModelScope.launch {
             _uiState.value = PermissionUiState.Loading
-            setMusicFolderUseCase(path)
+            try {
+                setMusicFolderUseCase(path)
+            } catch (e: Exception) {
+                _uiState.value = PermissionUiState.Error("Failed to set music folder: ${e.message}")
+            }
         }
     }
 }

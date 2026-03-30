@@ -117,6 +117,35 @@ fun PermissionAndSetupManager(
                     )
                 }
             }
+            is PermissionUiState.Error -> {
+                Column(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(Dimens.PaddingMedium),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.Center
+                ) {
+                    Text(
+                        text = "Error",
+                        style = MaterialTheme.typography.headlineSmall,
+                        textAlign = TextAlign.Center
+                    )
+                    Spacer(modifier = Modifier.height(Dimens.PaddingMedium))
+                    Text(
+                        text = state.message,
+                        textAlign = TextAlign.Center
+                    )
+                    Spacer(modifier = Modifier.height(Dimens.PaddingLarge))
+                    Button(
+                        onClick = {
+                            isFolderSetupSkipped = true
+                        },
+                        modifier = Modifier.fillMaxWidth(0.8f)
+                    ) {
+                        Text("Skip Setup")
+                    }
+                }
+            }
         }
     } else {
         LaunchedEffect(Unit) {

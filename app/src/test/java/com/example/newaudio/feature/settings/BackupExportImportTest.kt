@@ -19,6 +19,9 @@ import com.example.newaudio.domain.usecase.settings.SetShowHiddenFilesUseCase
 import com.example.newaudio.domain.usecase.settings.SetThemeUseCase
 import com.example.newaudio.domain.usecase.settings.SetTransparentListItemsUseCase
 import com.example.newaudio.domain.usecase.settings.SetUseMarqueeUseCase
+import com.example.newaudio.domain.usecase.settings.SetSettingsCardTransparentUseCase
+import com.example.newaudio.domain.usecase.settings.SetSettingsCardBorderWidthUseCase
+import com.example.newaudio.domain.usecase.settings.SetSettingsCardBorderColorUseCase
 import com.example.newaudio.fake.FakeErrorRepository
 import com.example.newaudio.fake.FakeMediaRepository
 import com.example.newaudio.fake.FakeMediaScannerRepository
@@ -66,6 +69,9 @@ class BackupExportImportTest {
         setBackgroundTintFractionUseCase = SetBackgroundTintFractionUseCase(settingsRepo),
         setBackgroundGradientEnabledUseCase = SetBackgroundGradientEnabledUseCase(settingsRepo),
         setTransparentListItemsUseCase = SetTransparentListItemsUseCase(settingsRepo),
+        setSettingsCardTransparentUseCase = SetSettingsCardTransparentUseCase(settingsRepo),
+        setSettingsCardBorderWidthUseCase = SetSettingsCardBorderWidthUseCase(settingsRepo),
+        setSettingsCardBorderColorUseCase = SetSettingsCardBorderColorUseCase(settingsRepo),
         restoreUserPreferencesUseCase = RestoreUserPreferencesUseCase(settingsRepo),
         resetDatabaseUseCase = ResetDatabaseUseCase(mediaRepo, settingsRepo, scannerRepo),
         errorRepository = errorRepo,

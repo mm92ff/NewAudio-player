@@ -108,6 +108,7 @@ fun MainAppScreen(
                 FullScreenPlayer(
                     uiState = staticUiState,
                     currentPositionFlow = positionFlow,
+                    errorEvents = playerViewModel.errorEvents,
                     onBackClicked = { navController.popBackStack() },
                     onPlayPauseClicked = playerViewModel::onPlayPauseToggle,
                     onSkipPreviousClicked = playerViewModel::onSkipPrevious,

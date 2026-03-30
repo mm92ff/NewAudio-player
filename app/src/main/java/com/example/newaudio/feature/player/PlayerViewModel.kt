@@ -25,11 +25,14 @@ import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.collections.immutable.ImmutableMap
 import kotlinx.collections.immutable.toImmutableMap
 import kotlinx.coroutines.CoroutineDispatcher
+import kotlinx.coroutines.channels.Channel
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
@@ -56,21 +59,18 @@ class PlayerViewModel @Inject constructor(
         private const val TAG = "PlayerViewModel"
     }
 
-    private val _errorRes = MutableStateFlow<UiText?>(null)
     private val _songMetadata = MutableStateFlow<ImmutableMap<String, String?>?>(null)
     private var previousRepeatMode: UserPreferences.RepeatMode = UserPreferences.RepeatMode.NONE
 
-    private val metadataAndErrorFlow = combine(_errorRes, _songMetadata.asStateFlow()) { error, metadata ->
-        error to metadata
-    }
+    private val _errorEvents = Channel<UiText>()
+    val errorEvents: Flow<UiText> = _errorEvents.receiveAsFlow()
 
     val uiState: StateFlow<PlayerUiState> = combine(
         mediaRepository.getPlaybackState(),
         equalizerRepository.getEqualizerState(),
         settingsRepository.userPreferences,
-        metadataAndErrorFlow
-    ) { playbackState, equalizerState, userSettings, metadataAndError ->
-        val (errorRes, songMetadata) = metadataAndError
+        _songMetadata.asStateFlow()
+    ) { playbackState, equalizerState, userSettings, songMetadata ->
         PlayerUiState(
             isLoading = playbackState.isRestoring,
             isPlaying = playbackState.isPlaying,
@@ -80,7 +80,6 @@ class PlayerViewModel @Inject constructor(
             isShuffleEnabled = playbackState.isShuffleEnabled,
             repeatMode = mapRepeatMode(playbackState.repeatMode),
             equalizerState = equalizerState,
-            errorRes = errorRes,
             miniPlayerProgressBarHeight = userSettings.miniPlayerProgressBarHeight,
             fullScreenPlayerProgressBarHeight = userSettings.fullScreenPlayerProgressBarHeight,
             useMarquee = userSettings.useMarquee,
@@ -100,7 +99,7 @@ class PlayerViewModel @Inject constructor(
                 .onFailure { e ->
                     Timber.tag(TAG).e(e, "Playback session initialization failed")
                     errorRepository.log(LogLevel.ERROR, TAG, "Playback session initialization failed", e)
-                    _errorRes.value = UiText.StringResource(R.string.unknown_error)
+                    _errorEvents.trySend(UiText.StringResource(R.string.unknown_error))
                 }
         }
     }
@@ -166,13 +165,12 @@ class PlayerViewModel @Inject constructor(
     private fun safeLaunch(block: suspend () -> Unit) {
         viewModelScope.launch(ioDispatcher) {
             try {
-                _errorRes.value = null
                 block()
             } catch (e: Exception) {
                 val errorMessage = e.message ?: "Unknown error in Player"
                 Timber.tag(TAG).e(e, "Action failed: %s", errorMessage)
                 errorRepository.log(LogLevel.ERROR, TAG, errorMessage, e)
-                _errorRes.value = UiText.StringResource(R.string.unknown_error)
+                _errorEvents.trySend(UiText.StringResource(R.string.unknown_error))
             }
         }
     }

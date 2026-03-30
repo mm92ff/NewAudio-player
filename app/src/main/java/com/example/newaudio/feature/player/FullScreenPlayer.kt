@@ -15,6 +15,7 @@ import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -36,6 +37,7 @@ import com.example.newaudio.feature.player.composables.PlayerTopAppBar
 import com.example.newaudio.feature.player.composables.SongDetails
 import com.example.newaudio.feature.player.composables.SongMetadataDialog
 import com.example.newaudio.ui.theme.Dimens
+import com.example.newaudio.util.UiText
 import kotlinx.coroutines.flow.Flow
 import kotlin.math.min
 
@@ -62,6 +64,7 @@ private fun PlayerSeekBarHost(
 fun FullScreenPlayer(
     uiState: PlayerUiState,                 // ⚠️ arrives WITHOUT currentPosition ticks
     currentPositionFlow: Flow<Long>,         // ✅ ticks only inside the SeekBar
+    errorEvents: Flow<UiText>,
     onBackClicked: () -> Unit,
     onPlayPauseClicked: () -> Unit,
     onSkipPreviousClicked: () -> Unit,
@@ -74,10 +77,19 @@ fun FullScreenPlayer(
     onApplyPreset: (IEqualizerRepository.EqPreset) -> Unit,
     onShowSongMetadata: () -> Unit,
     onDismissSongMetadataDialog: () -> Unit,
+    onErrorShown: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     var showEqualizerSheet by remember { mutableStateOf(false) }
+    var errorMessage by remember { mutableStateOf<String?>(null) }
     val context = LocalContext.current
+
+    // Handle error events
+    LaunchedEffect(errorEvents) {
+        errorEvents.collect { error ->
+            errorMessage = error.asString(context)
+        }
+    }
 
     if (showEqualizerSheet) {
         ModalBottomSheet(onDismissRequest = { showEqualizerSheet = false }) {
@@ -145,12 +157,16 @@ fun FullScreenPlayer(
 
                     Spacer(modifier = Modifier.height(Dimens.PaddingMedium))
 
-                    uiState.errorRes?.let {
+                    errorMessage?.let { message ->
                         Text(
-                            text = stringResource(R.string.error_prefix, it.asString(context)),
+                            text = stringResource(R.string.error_prefix, message),
                             style = MaterialTheme.typography.bodyMedium,
                             color = MaterialTheme.colorScheme.error,
-                            textAlign = TextAlign.Center
+                            textAlign = TextAlign.Center,
+                            modifier = Modifier.clickable {
+                                errorMessage = null
+                                onErrorShown()
+                            }
                         )
                     }
                 }

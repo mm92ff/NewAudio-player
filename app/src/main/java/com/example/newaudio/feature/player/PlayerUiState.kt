@@ -4,7 +4,6 @@ import androidx.compose.runtime.Stable
 import com.example.newaudio.domain.model.Song
 import com.example.newaudio.domain.model.UserPreferences
 import com.example.newaudio.domain.repository.IEqualizerRepository
-import com.example.newaudio.util.UiText
 import kotlinx.collections.immutable.ImmutableMap
 import kotlinx.collections.immutable.persistentListOf
 
@@ -21,7 +20,6 @@ data class PlayerUiState(
     val isShuffleEnabled: Boolean = false,
     val repeatMode: UserPreferences.RepeatMode = UserPreferences.RepeatMode.NONE,
     val equalizerState: IEqualizerRepository.EqualizerState = IEqualizerRepository.EqualizerState(false, persistentListOf()),
-    val errorRes: UiText? = null,
     val miniPlayerProgressBarHeight: Float = UserPreferences.default().miniPlayerProgressBarHeight,
     val fullScreenPlayerProgressBarHeight: Float = UserPreferences.default().fullScreenPlayerProgressBarHeight,
     val useMarquee: Boolean = false,

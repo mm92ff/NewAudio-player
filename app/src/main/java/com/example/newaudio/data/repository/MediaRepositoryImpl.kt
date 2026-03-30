@@ -89,6 +89,7 @@ class MediaRepositoryImpl @Inject constructor(
             mediaController = controller
 
             val delegate = PlayerListenerDelegate(
+                context = context,
                 playbackState = _playbackState,
                 settingsRepository = settingsRepository,
                 player = controller,

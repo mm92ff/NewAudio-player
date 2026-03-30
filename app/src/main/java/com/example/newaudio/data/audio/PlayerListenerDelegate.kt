@@ -1,13 +1,16 @@
 package com.example.newaudio.data.audio
 
+import android.content.Context
 import androidx.media3.common.MediaItem
 import androidx.media3.common.PlaybackException
 import androidx.media3.common.Player
+import com.example.newaudio.R
 import com.example.newaudio.di.IoDispatcher
 import com.example.newaudio.domain.model.Song
 import com.example.newaudio.domain.model.UserPreferences
 import com.example.newaudio.domain.repository.IMediaRepository
 import com.example.newaudio.domain.repository.ISettingsRepository
+import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
@@ -21,6 +24,7 @@ import javax.inject.Inject
 import kotlin.math.abs
 
 class PlayerListenerDelegate @Inject constructor(
+    @ApplicationContext private val context: Context,
     private val playbackState: MutableStateFlow<IMediaRepository.PlaybackState>,
     private val settingsRepository: ISettingsRepository, // Direktes Repo statt UseCase
     private val player: Player,
@@ -77,7 +81,20 @@ class PlayerListenerDelegate @Inject constructor(
 
     override fun onPlayerError(error: PlaybackException) {
         Timber.tag(TAG).e(error, "Player error: %s", error.message)
-        val playerError = IMediaRepository.PlayerError(error.errorCode, error.message ?: "Unknown error")
+
+        // Determine if this is a network-related error
+        val errorMessage = when (error.errorCode) {
+            PlaybackException.ERROR_CODE_IO_NETWORK_CONNECTION_FAILED,
+            PlaybackException.ERROR_CODE_IO_NETWORK_CONNECTION_TIMEOUT,
+            PlaybackException.ERROR_CODE_IO_INVALID_HTTP_CONTENT_TYPE,
+            PlaybackException.ERROR_CODE_IO_BAD_HTTP_STATUS,
+            PlaybackException.ERROR_CODE_IO_FILE_NOT_FOUND -> {
+                context.getString(R.string.error_network)
+            }
+            else -> error.message ?: "Unknown error"
+        }
+
+        val playerError = IMediaRepository.PlayerError(error.errorCode, errorMessage)
         playbackState.update { it.copy(isPlaying = false, playerError = playerError) }
     }
 

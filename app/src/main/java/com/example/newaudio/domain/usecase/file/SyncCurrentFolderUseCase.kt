@@ -150,7 +150,9 @@ class SyncCurrentFolderUseCase @Inject constructor(
 
             SimpleMetadata(title, artist, album, duration)
         } finally {
-            try { retriever.release() } catch (_: Exception) {}
+            try { retriever.release() } catch (e: Exception) {
+                Timber.tag(TAG).w(e, "Failed to release MediaMetadataRetriever (non-fatal)")
+            }
         }
     }
 }

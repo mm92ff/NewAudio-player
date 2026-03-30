@@ -305,7 +305,9 @@ class MediaScannerRepositoryImpl @Inject constructor(
             Timber.tag(TAG).w("Metadata extraction failed for $path")
             emptyMap()
         } finally {
-            try { retriever.release() } catch (_: Exception) {}
+            try { retriever.release() } catch (e: Exception) {
+                Timber.tag(TAG).w(e, "Failed to release MediaMetadataRetriever (non-fatal)")
+            }
         }
     }
 

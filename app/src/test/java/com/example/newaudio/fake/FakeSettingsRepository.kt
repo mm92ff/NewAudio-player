@@ -53,6 +53,7 @@ class FakeSettingsRepository : ISettingsRepository {
 
     override suspend fun setMusicFolderPath(path: String) {
         _musicFolderPath.value = path
+        _prefs.value = _prefs.value.copy(musicFolderPath = path)
     }
 
     override fun getMusicFolderPath(): Flow<String> = _musicFolderPath.asStateFlow()

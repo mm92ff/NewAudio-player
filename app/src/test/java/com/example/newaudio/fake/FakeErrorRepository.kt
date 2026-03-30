@@ -15,10 +15,34 @@ class FakeErrorRepository : IErrorRepository {
     override fun getLogs(): Flow<List<LogEntry>> = _logs.asStateFlow()
 
     override fun log(level: LogLevel, tag: String, message: String, throwable: Throwable?) {
-        // no-op in tests — avoids Timber.plant() requirement
+        val newEntry = LogEntry(
+            message = message,
+            level = level,
+            tag = tag,
+            throwableString = throwable?.toString()
+        )
+        _logs.value = _logs.value + newEntry
     }
 
     override suspend fun clearLogs() {
         _logs.value = emptyList()
+    }
+
+    // Test helper methods
+    fun addLog(message: String, level: LogLevel, tag: String = "TEST", throwableString: String? = null) {
+        val newEntry = LogEntry(
+            message = message,
+            level = level,
+            tag = tag,
+            throwableString = throwableString
+        )
+        _logs.value = _logs.value + newEntry
+    }
+
+    fun addMultipleLogs(vararg entries: Pair<String, LogLevel>) {
+        val newEntries = entries.map { (message, level) ->
+            LogEntry(message = message, level = level, tag = "TEST")
+        }
+        _logs.value = _logs.value + newEntries
     }
 }

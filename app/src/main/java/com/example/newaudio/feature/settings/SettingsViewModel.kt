@@ -1,5 +1,7 @@
 package com.example.newaudio.feature.settings
 
+import android.content.Context
+import android.net.Uri
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.newaudio.R
@@ -9,6 +11,7 @@ import com.example.newaudio.domain.model.UserPreferences
 import com.example.newaudio.domain.repository.IErrorRepository
 import com.example.newaudio.domain.repository.IPlaylistRepository
 import com.example.newaudio.domain.usecase.settings.GetUserSettingsUseCase
+import java.io.File
 import com.example.newaudio.domain.usecase.file.SetMusicFolderUseCase
 import com.example.newaudio.domain.usecase.settings.ResetDatabaseUseCase
 import com.example.newaudio.domain.usecase.settings.SetAutoPlayOnBluetoothUseCase
@@ -239,6 +242,83 @@ class SettingsViewModel @Inject constructor(
         }
 
         Timber.d("Import Result: Found=${result.songsFound}, Fixed=${result.songsFixed}, Missing=${result.songsNotFound}")
+    }
+
+    fun onExportPlaylistsToUri(destinationUri: Uri, context: Context) = safeLaunch {
+        // Create temporary file for export
+        val tempFile = File(context.cacheDir, "export_temp.json")
+
+        try {
+            // First export to temporary file
+            val exportSuccess = exportPlaylistsSuspend(tempFile.absolutePath)
+
+            if (exportSuccess) {
+                // Copy from temp file to user-selected destination
+                val copySuccess = withContext(ioDispatcher) {
+                    try {
+                        context.contentResolver.openOutputStream(destinationUri, "wt")?.use { output ->
+                            tempFile.inputStream().use { input ->
+                                input.copyTo(output)
+                            }
+                        }
+                        true
+                    } catch (e: Exception) {
+                        Timber.tag(TAG).e(e, "Failed to copy export file to destination")
+                        errorRepository.log(LogLevel.ERROR, TAG, "Export copy failed: ${e.message}", e)
+                        false
+                    } finally {
+                        // Clean up temporary file
+                        if (tempFile.exists()) {
+                            tempFile.delete()
+                        }
+                    }
+                }
+
+                if (!copySuccess) {
+                    _events.send(SettingsEvent.ShowMessage(UiText.StringResource(R.string.copy_failed)))
+                }
+            }
+        } catch (e: Exception) {
+            Timber.tag(TAG).e(e, "Export operation failed")
+            errorRepository.log(LogLevel.ERROR, TAG, "Export failed: ${e.message}", e)
+            _events.send(SettingsEvent.ShowMessage(UiText.StringResource(R.string.unknown_error)))
+            // Clean up temp file on error
+            if (tempFile.exists()) {
+                tempFile.delete()
+            }
+        }
+    }
+
+    fun onImportPlaylistsFromUri(sourceUri: Uri, context: Context) = safeLaunch {
+        // Create temporary file for import
+        val tempFile = File(context.cacheDir, "import_temp.json")
+
+        try {
+            withContext(ioDispatcher) {
+                // Copy from source URI to temp file
+                context.contentResolver.openInputStream(sourceUri)?.use { input ->
+                    tempFile.outputStream().use { output ->
+                        input.copyTo(output)
+                    }
+                }
+            }
+
+            // Import from temporary file (this already handles the file:// prefix)
+            onImportPlaylists(tempFile.absolutePath)
+
+            // Clean up temporary file
+            if (tempFile.exists()) {
+                tempFile.delete()
+            }
+        } catch (e: Exception) {
+            Timber.tag(TAG).e(e, "Import operation failed")
+            errorRepository.log(LogLevel.ERROR, TAG, "Import failed: ${e.message}", e)
+            _events.send(SettingsEvent.ShowMessage(UiText.StringResource(R.string.unknown_error)))
+            // Clean up temp file on error
+            if (tempFile.exists()) {
+                tempFile.delete()
+            }
+        }
     }
 
     private fun safeLaunch(block: suspend () -> Unit) {

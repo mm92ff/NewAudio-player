@@ -15,7 +15,6 @@ import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
@@ -28,10 +27,6 @@ import com.example.newaudio.feature.settings.composables.*
 import com.example.newaudio.feature.settings.composables.LocalSettingsCardStyle
 import com.example.newaudio.feature.settings.composables.SettingsCardStyle
 import com.example.newaudio.ui.theme.Dimens
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
-import java.io.File
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -44,8 +39,7 @@ fun SettingsScreen(
     val context = LocalContext.current
     val snackbarHostState = remember { SnackbarHostState() }
 
-    // IMPORTANT: Coroutine scope for UI operations
-    val scope = rememberCoroutineScope()
+    // Note: Removed rememberCoroutineScope as I/O operations moved to ViewModel
 
     if (showResetDialog) {
         AlertDialog(
@@ -85,48 +79,13 @@ fun SettingsScreen(
         }
     }
 
-    // --- Export Launcher (FIXED & ROBUST) ---
+    // --- Export Launcher ---
     val exportLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.CreateDocument("application/json")
     ) { uri: Uri? ->
         uri?.let { destinationUri ->
-            scope.launch {
-                // 1. Path to temporary file
-                val tempFile = File(context.cacheDir, "export_temp.json")
-
-                // 2. Call ViewModel and WAIT (suspend)
-                // The ViewModel now writes to 'file://path/to/temp'
-                val exportSuccess = viewModel.exportPlaylistsSuspend(tempFile.absolutePath)
-
-                if (exportSuccess) {
-                    // 3. If export succeeded, copy the content into the file chosen by the user
-                    val copySuccess = withContext(Dispatchers.IO) {
-                        try {
-                            // "wt" = Write & Truncate (important when overwriting!)
-                            context.contentResolver.openOutputStream(destinationUri, "wt")?.use { output ->
-                                tempFile.inputStream().use { input ->
-                                    input.copyTo(output)
-                                }
-                            }
-                            true
-                        } catch (e: Exception) {
-                            e.printStackTrace()
-                            false
-                        } finally {
-                            // Clean up
-                            if (tempFile.exists()) {
-                                tempFile.delete()
-                            }
-                        }
-                    }
-
-                    // If copying fails (e.g. due to permissions), inform the user
-                    if (!copySuccess) {
-                        viewModel.onCopyFailed()
-                    }
-                }
-                // If exportSuccess == false, the ViewModel has already sent an error event.
-            }
+            // Delegate I/O operations to ViewModel instead of handling in composable
+            viewModel.onExportPlaylistsToUri(destinationUri, context)
         }
     }
 
@@ -135,22 +94,8 @@ fun SettingsScreen(
         contract = ActivityResultContracts.GetContent()
     ) { uri: Uri? ->
         uri?.let {
-            scope.launch(Dispatchers.IO) {
-                try {
-                    val tempFile = File(context.cacheDir, "import_temp.json")
-                    context.contentResolver.openInputStream(it)?.use { input ->
-                        tempFile.outputStream().use { output ->
-                            input.copyTo(output)
-                        }
-                    }
-                    // Import via ViewModel (with file:// prefix adjustment in VM)
-                    withContext(Dispatchers.Main) {
-                        viewModel.onImportPlaylists(tempFile.absolutePath)
-                    }
-                } catch (e: Exception) {
-                    e.printStackTrace()
-                }
-            }
+            // Delegate I/O operations to ViewModel instead of handling in composable
+            viewModel.onImportPlaylistsFromUri(it, context)
         }
     }
 

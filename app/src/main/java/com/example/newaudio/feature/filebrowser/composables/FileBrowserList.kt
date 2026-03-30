@@ -48,8 +48,8 @@ fun FileBrowserList(
                 items = uiState.fileItems,
                 key = { it.path }
             ) { item ->
-                val itemState = remember(item, activeSongPath, uiState.selectedPaths, uiState.repeatMode) {
-                    val isActive = if (activeSongPath == null) {
+                val isActive = remember(item, activeSongPath) {
+                    if (activeSongPath == null) {
                         false
                     } else {
                         when (item) {
@@ -58,15 +58,15 @@ fun FileBrowserList(
                             else -> false
                         }
                     }
-                    val isSelected = uiState.selectedPaths.contains(item.path)
-                    val isRepeatingSong = isActive && uiState.repeatMode == UserPreferences.RepeatMode.ONE
-
-                    Triple(isActive, isSelected, isRepeatingSong)
                 }
 
-                val isActive = itemState.first
-                val isSelected = itemState.second
-                val isRepeatingSong = itemState.third
+                val isSelected = remember(uiState.selectedPaths, item.path) {
+                    uiState.selectedPaths.contains(item.path)
+                }
+
+                val isRepeatingSong = remember(isActive, uiState.repeatMode) {
+                    isActive && uiState.repeatMode == UserPreferences.RepeatMode.ONE
+                }
 
                 FileBrowserItem(
                     item = item,

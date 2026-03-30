@@ -115,4 +115,15 @@ interface PlaylistDao {
 
     @Query("SELECT * FROM songs WHERE filename = :name AND size = :size LIMIT 1")
     suspend fun findSongByFilenameAndSize(name: String, size: Long): SongEntity?
+
+    @Transaction
+    suspend fun importPlaylistWithSongs(
+        playlist: PlaylistEntity,
+        songs: List<PlaylistSongEntity>
+    ): Long {
+        val playlistId = insertPlaylist(playlist)
+        val songsWithCorrectId = songs.map { it.copy(playlistId = playlistId) }
+        insertPlaylistSongs(songsWithCorrectId)
+        return playlistId
+    }
 }

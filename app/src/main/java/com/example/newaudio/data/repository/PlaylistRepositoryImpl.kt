@@ -190,10 +190,14 @@ class PlaylistRepositoryImpl @Inject constructor(
             restoredPreferences = container.settings
 
             container.playlists.forEachIndexed { pIdx, exportModel ->
-                val playlistId = playlistDao.insertPlaylist(
-                    PlaylistEntity(name = exportModel.name, position = pIdx, createdAt = exportModel.createdAt)
+                val playlistEntity = PlaylistEntity(
+                    name = exportModel.name,
+                    position = pIdx,
+                    createdAt = exportModel.createdAt
                 )
-                playlistsImported++
+
+                // Collect songs that can be resolved
+                val resolvedSongs = mutableListOf<PlaylistSongEntity>()
 
                 exportModel.songs.forEachIndexed { index, songExport ->
                     var finalPath: String? = null
@@ -226,13 +230,15 @@ class PlaylistRepositoryImpl @Inject constructor(
                     }
 
                     if (finalPath != null) {
-                        playlistDao.insertPlaylistSong(
-                            PlaylistSongEntity(playlistId, finalPath, index)
-                        )
+                        resolvedSongs.add(PlaylistSongEntity(0L, finalPath, index)) // playlistId will be set in DAO
                     } else {
                         songsNotFound++
                     }
                 }
+
+                // Import playlist and songs in a single transaction
+                playlistDao.importPlaylistWithSongs(playlistEntity, resolvedSongs)
+                playlistsImported++
             }
         } catch (e: Exception) {
             Timber.e(e, "Import failed")

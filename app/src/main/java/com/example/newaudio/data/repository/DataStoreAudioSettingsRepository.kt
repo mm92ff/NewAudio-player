@@ -62,7 +62,10 @@ class DataStoreAudioSettingsRepository @Inject constructor(
 
     override fun getSavedPresetName(): Flow<String> {
         return dataStore.data
-            .catch { emit(emptyPreferences()) }
+            .catch { e ->
+                if (e is IOException) Timber.e(e, "DataStore read failed, using defaults")
+                emit(emptyPreferences())
+            }
             .map { preferences ->
                 preferences[Keys.PRESET_NAME] ?: "Normal"
             }
@@ -71,7 +74,10 @@ class DataStoreAudioSettingsRepository @Inject constructor(
 
     override fun getCustomBandLevels(): Flow<List<Int>> {
         return dataStore.data
-            .catch { emit(emptyPreferences()) }
+            .catch { e ->
+                if (e is IOException) Timber.e(e, "DataStore read failed, using defaults")
+                emit(emptyPreferences())
+            }
             .map { preferences ->
                 val serializedString = preferences[Keys.CUSTOM_BAND_LEVELS] ?: ""
 
@@ -86,7 +92,10 @@ class DataStoreAudioSettingsRepository @Inject constructor(
 
     override fun getEqualizerEnabled(): Flow<Boolean> {
         return dataStore.data
-            .catch { emit(emptyPreferences()) }
+            .catch { e ->
+                if (e is IOException) Timber.e(e, "DataStore read failed, using defaults")
+                emit(emptyPreferences())
+            }
             .map { preferences ->
                 preferences[Keys.EQ_ENABLED] ?: false
             }

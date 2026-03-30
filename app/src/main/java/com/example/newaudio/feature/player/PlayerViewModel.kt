@@ -102,6 +102,28 @@ class PlayerViewModel @Inject constructor(
                     _errorEvents.trySend(UiText.StringResource(R.string.unknown_error))
                 }
         }
+
+        // Observe player errors from PlaybackState and route them through _errorEvents
+        viewModelScope.launch {
+            mediaRepository.getPlaybackState()
+                .collect { playbackState ->
+                    playbackState.playerError?.let { playerError ->
+                        // Convert PlayerError to UiText based on the message content
+                        // Check if this is the network error message from PlayerListenerDelegate
+                        val errorUiText = if (playerError.message == "Network error") {
+                            UiText.StringResource(R.string.error_network)
+                        } else {
+                            UiText.DynamicString(playerError.message)
+                        }
+
+                        // Emit error event to UI
+                        _errorEvents.trySend(errorUiText)
+
+                        // Clear the error from PlaybackState after consuming it
+                        mediaRepository.clearPlayerError()
+                    }
+                }
+        }
     }
 
     fun onShowSongMetadata() = safeLaunch {

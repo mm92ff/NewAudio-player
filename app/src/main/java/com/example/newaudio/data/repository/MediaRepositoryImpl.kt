@@ -248,6 +248,10 @@ class MediaRepositoryImpl @Inject constructor(
         withContext(mainDispatcher) { controller.seekTo(position) }
     }
 
+    override suspend fun clearPlayerError() {
+        _playbackState.update { it.copy(playerError = null) }
+    }
+
     override suspend fun clearDatabase() {
         withContext(ioDispatcher) {
             appDatabase.clearAllTables()

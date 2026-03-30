@@ -74,5 +74,9 @@ class FakeMediaRepository : IMediaRepository {
 
     override suspend fun seekTo(position: Long) { seekToPosition = position }
 
+    override suspend fun clearPlayerError() {
+        _playbackState.value = _playbackState.value.copy(playerError = null)
+    }
+
     override suspend fun clearDatabase() { clearDatabaseCalled = true }
 }

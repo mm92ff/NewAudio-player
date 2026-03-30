@@ -51,5 +51,7 @@ interface IMediaRepository {
 
     suspend fun seekTo(position: Long)
 
+    suspend fun clearPlayerError()
+
     suspend fun clearDatabase()
 }

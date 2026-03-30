@@ -4,6 +4,7 @@ import android.content.ContentResolver
 import android.database.Cursor
 import android.net.Uri
 import android.os.Build
+import android.os.Environment
 import android.provider.DocumentsContract
 import timber.log.Timber
 import java.io.File
@@ -194,7 +195,7 @@ object SafTreeAccess {
         var p = path.trim()
 
         // Normalize common aliases
-        p = p.replace("/sdcard/", "/storage/emulated/0/")
+        p = p.replace("/sdcard/", "${Environment.getExternalStorageDirectory().path}/")
         p = p.replace("/storage/self/primary/", "/storage/emulated/0/")
 
         // Remove double slashes (rough pass)

@@ -3,6 +3,7 @@ package com.example.newaudio.receiver
 import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
+import android.os.Build
 import com.example.newaudio.service.MediaPlaybackService
 
 class BootCompleteReceiver : BroadcastReceiver() {
@@ -13,7 +14,11 @@ class BootCompleteReceiver : BroadcastReceiver() {
 
             // Restart the Media Service if needed
             val serviceIntent = Intent(context, MediaPlaybackService::class.java)
-            context.startForegroundService(serviceIntent)
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                context.startForegroundService(serviceIntent)
+            } else {
+                context.startService(serviceIntent)
+            }
         }
     }
 }

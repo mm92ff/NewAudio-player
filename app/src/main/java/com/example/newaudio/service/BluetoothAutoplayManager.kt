@@ -15,6 +15,7 @@ import com.example.newaudio.domain.repository.ISettingsRepository
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
+import timber.log.Timber
 
 /**
  * Manages Bluetooth connection events to trigger auto-play or auto-pause logic.
@@ -57,6 +58,7 @@ class BluetoothAutoplayManager(
             context.unregisterReceiver(receiver)
         } catch (e: IllegalArgumentException) {
             // Receiver might not be registered or already unregistered
+            Timber.w(e, "Failed to unregister Bluetooth receiver")
         }
     }
 

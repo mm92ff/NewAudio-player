@@ -17,6 +17,8 @@ class FakePlaylistRepository : IPlaylistRepository {
     var exportReturnValue = true
     var exportedPreferences: UserPreferences? = null
     var importReturnPreferences: UserPreferences? = null
+    var importShouldThrow = false
+    var exportShouldThrow = false
 
     override fun getAllPlaylists(): Flow<List<Playlist>> = _playlists.asStateFlow()
 
@@ -59,11 +61,14 @@ class FakePlaylistRepository : IPlaylistRepository {
     override fun getSongsInPlaylist(playlistId: Long): Flow<List<Song>> = flowOf(emptyList())
 
     override suspend fun exportPlaylists(filePath: String, userPreferences: UserPreferences): Boolean {
+        if (exportShouldThrow) throw RuntimeException("Export failed")
         exportCalled = true
         exportedPreferences = userPreferences
         return exportReturnValue
     }
 
-    override suspend fun importPlaylists(filePath: String) =
-        ImportResult(0, 0, 0, 0, importReturnPreferences)
+    override suspend fun importPlaylists(filePath: String): ImportResult {
+        if (importShouldThrow) throw RuntimeException("Import failed")
+        return ImportResult(0, 0, 0, 0, importReturnPreferences)
+    }
 }

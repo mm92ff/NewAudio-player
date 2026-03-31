@@ -6,8 +6,8 @@ cd /d "%~dp0"
 :: -----------------------------------------------------------------------
 :: Paths
 :: -----------------------------------------------------------------------
-set "APP_ID=com.example.pocastcloni"
-set "MAIN_ACTIVITY=%APP_ID%.ui.main.MainActivity"
+set "APP_ID=com.example.newaudio"
+set "MAIN_ACTIVITY=%APP_ID%.MainActivity"
 set "ANDROID_SDK_ROOT=C:\Users\jemi\AppData\Local\Android\Sdk"
 set "ADB=%ANDROID_SDK_ROOT%\platform-tools\adb.exe"
 set "EMULATOR=%ANDROID_SDK_ROOT%\emulator\emulator.exe"

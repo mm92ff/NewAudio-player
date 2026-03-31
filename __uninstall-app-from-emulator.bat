@@ -3,7 +3,7 @@ setlocal EnableExtensions EnableDelayedExpansion
 
 cd /d "%~dp0"
 
-set "APP_ID=com.example.pocastcloni"
+set "APP_ID=com.example.newaudio"
 set "JAVA_HOME=C:\Program Files\Android\Android Studio\jbr"
 set "ANDROID_SDK_ROOT=C:\Users\jemi\AppData\Local\Android\Sdk"
 set "ANDROID_HOME=%ANDROID_SDK_ROOT%"

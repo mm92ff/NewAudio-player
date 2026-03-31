@@ -27,7 +27,9 @@ class FakeSettingsRepository : ISettingsRepository {
         _prefs.value = _prefs.value.copy(primaryColor = color)
     }
 
-    override suspend fun setMarqueeEnabled(isEnabled: Boolean) {}
+    override suspend fun setMarqueeEnabled(isEnabled: Boolean) {
+        _prefs.value = _prefs.value.copy(isMarqueeEnabled = isEnabled)
+    }
 
     override suspend fun setShuffleEnabled(isEnabled: Boolean) {
         _prefs.value = _prefs.value.copy(isShuffleEnabled = isEnabled)
@@ -37,19 +39,33 @@ class FakeSettingsRepository : ISettingsRepository {
         _prefs.value = _prefs.value.copy(repeatMode = repeatMode)
     }
 
-    override suspend fun setOneHandedMode(isEnabled: Boolean) {}
+    override suspend fun setOneHandedMode(isEnabled: Boolean) {
+        _prefs.value = _prefs.value.copy(oneHandedMode = isEnabled)
+    }
 
-    override suspend fun setUseMarquee(useMarquee: Boolean) {}
+    override suspend fun setUseMarquee(useMarquee: Boolean) {
+        _prefs.value = _prefs.value.copy(useMarquee = useMarquee, isMarqueeEnabled = useMarquee)
+    }
 
-    override suspend fun setShowHiddenFiles(show: Boolean) {}
+    override suspend fun setShowHiddenFiles(show: Boolean) {
+        _prefs.value = _prefs.value.copy(showHiddenFiles = show)
+    }
 
-    override suspend fun setPlayOnFolderClick(isEnabled: Boolean) {}
+    override suspend fun setPlayOnFolderClick(isEnabled: Boolean) {
+        _prefs.value = _prefs.value.copy(playOnFolderClick = isEnabled)
+    }
 
-    override suspend fun setShowFolderSongCount(isEnabled: Boolean) {}
+    override suspend fun setShowFolderSongCount(isEnabled: Boolean) {
+        _prefs.value = _prefs.value.copy(showFolderSongCount = isEnabled)
+    }
 
-    override suspend fun setAutoPlayOnBluetooth(isEnabled: Boolean) {}
+    override suspend fun setAutoPlayOnBluetooth(isEnabled: Boolean) {
+        _prefs.value = _prefs.value.copy(isAutoPlayOnBluetooth = isEnabled)
+    }
 
-    override suspend fun setAutoPlayOnStart(isEnabled: Boolean) {}
+    override suspend fun setAutoPlayOnStart(isEnabled: Boolean) {
+        _prefs.value = _prefs.value.copy(isAutoPlayOnStart = isEnabled)
+    }
 
     override suspend fun setMusicFolderPath(path: String) {
         _musicFolderPath.value = path
@@ -58,9 +74,13 @@ class FakeSettingsRepository : ISettingsRepository {
 
     override fun getMusicFolderPath(): Flow<String> = _musicFolderPath.asStateFlow()
 
-    override suspend fun setMiniPlayerProgressBarHeight(height: Float) {}
+    override suspend fun setMiniPlayerProgressBarHeight(height: Float) {
+        _prefs.value = _prefs.value.copy(miniPlayerProgressBarHeight = height)
+    }
 
-    override suspend fun setFullScreenPlayerProgressBarHeight(height: Float) {}
+    override suspend fun setFullScreenPlayerProgressBarHeight(height: Float) {
+        _prefs.value = _prefs.value.copy(fullScreenPlayerProgressBarHeight = height)
+    }
 
     override suspend fun setBackgroundTintFraction(fraction: Float) {
         _prefs.value = _prefs.value.copy(backgroundTintFraction = fraction)

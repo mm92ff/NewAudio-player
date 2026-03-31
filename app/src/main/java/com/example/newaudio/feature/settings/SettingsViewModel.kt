@@ -176,7 +176,7 @@ class SettingsViewModel @Inject constructor(
         resetDatabaseUseCase()
     }
 
-    suspend fun exportPlaylistsSuspend(filePath: String): Boolean {
+    suspend fun exportPlaylistsSuspend(filePath: String, notifyResult: Boolean = true): Boolean {
         return withContext(ioDispatcher) {
             try {
                 val pathForRepo = if (filePath.startsWith("/") && !filePath.startsWith("file://")) {
@@ -187,17 +187,21 @@ class SettingsViewModel @Inject constructor(
 
                 val success = playlistRepository.exportPlaylists(pathForRepo, settingsState.value)
 
-                if (success) {
-                    _events.send(SettingsEvent.ShowMessage(UiText.StringResource(R.string.export_success)))
-                } else {
-                    _events.send(SettingsEvent.ShowMessage(UiText.StringResource(R.string.unknown_error)))
+                if (notifyResult) {
+                    if (success) {
+                        _events.send(SettingsEvent.ShowMessage(UiText.StringResource(R.string.export_success)))
+                    } else {
+                        _events.send(SettingsEvent.ShowMessage(UiText.StringResource(R.string.unknown_error)))
+                    }
                 }
                 success
             } catch (e: Exception) {
                 val errorMessage = e.message ?: "Unknown error during export"
                 Timber.tag(TAG).e(e, "Export failed")
                 errorRepository.log(LogLevel.ERROR, TAG, errorMessage, e)
-                _events.send(SettingsEvent.ShowMessage(UiText.StringResource(R.string.unknown_error)))
+                if (notifyResult) {
+                    _events.send(SettingsEvent.ShowMessage(UiText.StringResource(R.string.unknown_error)))
+                }
                 false
             }
         }
@@ -216,7 +220,7 @@ class SettingsViewModel @Inject constructor(
         }
     }
 
-    fun onImportPlaylists(filePath: String) = safeLaunch {
+    private suspend fun performImport(filePath: String) {
         val pathForRepo = if (filePath.startsWith("/") && !filePath.startsWith("file://")) {
             "file://$filePath"
         } else {
@@ -244,19 +248,21 @@ class SettingsViewModel @Inject constructor(
         Timber.d("Import Result: Found=${result.songsFound}, Fixed=${result.songsFixed}, Missing=${result.songsNotFound}")
     }
 
-    fun onExportPlaylistsToUri(destinationUri: Uri, context: Context) = safeLaunch {
-        // Create temporary file for export
-        val tempFile = File(context.cacheDir, "export_temp.json")
+    fun onImportPlaylists(filePath: String) = safeLaunch {
+        performImport(filePath)
+    }
 
+    fun onExportPlaylistsToUri(destinationUri: Uri, context: Context) = safeLaunch {
+        val tempFile = File(context.cacheDir, "export_temp.json")
         try {
-            // First export to temporary file
-            val exportSuccess = exportPlaylistsSuspend(tempFile.absolutePath)
+            val exportSuccess = exportPlaylistsSuspend(tempFile.absolutePath, notifyResult = false)
 
             if (exportSuccess) {
-                // Copy from temp file to user-selected destination
                 val copySuccess = withContext(ioDispatcher) {
                     try {
-                        context.contentResolver.openOutputStream(destinationUri, "wt")?.use { output ->
+                        val opened = context.contentResolver.openOutputStream(destinationUri, "wt")
+                        if (opened == null) return@withContext false
+                        opened.use { output ->
                             tempFile.inputStream().use { input ->
                                 input.copyTo(output)
                             }
@@ -266,23 +272,22 @@ class SettingsViewModel @Inject constructor(
                         Timber.tag(TAG).e(e, "Failed to copy export file to destination")
                         errorRepository.log(LogLevel.ERROR, TAG, "Export copy failed: ${e.message}", e)
                         false
-                    } finally {
-                        // Clean up temporary file
-                        if (tempFile.exists()) {
-                            tempFile.delete()
-                        }
                     }
                 }
 
-                if (!copySuccess) {
+                if (copySuccess) {
+                    _events.send(SettingsEvent.ShowMessage(UiText.StringResource(R.string.export_success)))
+                } else {
                     _events.send(SettingsEvent.ShowMessage(UiText.StringResource(R.string.copy_failed)))
                 }
+            } else {
+                _events.send(SettingsEvent.ShowMessage(UiText.StringResource(R.string.unknown_error)))
             }
         } catch (e: Exception) {
             Timber.tag(TAG).e(e, "Export operation failed")
             errorRepository.log(LogLevel.ERROR, TAG, "Export failed: ${e.message}", e)
             _events.send(SettingsEvent.ShowMessage(UiText.StringResource(R.string.unknown_error)))
-            // Clean up temp file on error
+        } finally {
             if (tempFile.exists()) {
                 tempFile.delete()
             }
@@ -290,12 +295,9 @@ class SettingsViewModel @Inject constructor(
     }
 
     fun onImportPlaylistsFromUri(sourceUri: Uri, context: Context) = safeLaunch {
-        // Create temporary file for import
         val tempFile = File(context.cacheDir, "import_temp.json")
-
         try {
             withContext(ioDispatcher) {
-                // Copy from source URI to temp file
                 context.contentResolver.openInputStream(sourceUri)?.use { input ->
                     tempFile.outputStream().use { output ->
                         input.copyTo(output)
@@ -303,18 +305,13 @@ class SettingsViewModel @Inject constructor(
                 }
             }
 
-            // Import from temporary file (this already handles the file:// prefix)
-            onImportPlaylists(tempFile.absolutePath)
+            performImport(tempFile.absolutePath)
 
-            // Clean up temporary file
-            if (tempFile.exists()) {
-                tempFile.delete()
-            }
         } catch (e: Exception) {
             Timber.tag(TAG).e(e, "Import operation failed")
             errorRepository.log(LogLevel.ERROR, TAG, "Import failed: ${e.message}", e)
             _events.send(SettingsEvent.ShowMessage(UiText.StringResource(R.string.unknown_error)))
-            // Clean up temp file on error
+        } finally {
             if (tempFile.exists()) {
                 tempFile.delete()
             }

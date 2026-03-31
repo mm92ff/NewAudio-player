@@ -42,3 +42,10 @@ app/src/main/java/**/NavArgs*.kt
 workflow/runtime/
 workflow/reports/
 workflow/research/
+
+# Temporary / scratch files
+xxx/
+githubfolder/
+
+# Governance / internal profiles (not part of the public repo)
+governance/

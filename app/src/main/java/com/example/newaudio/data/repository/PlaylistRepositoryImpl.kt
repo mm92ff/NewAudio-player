@@ -27,6 +27,7 @@ import timber.log.Timber
 import java.io.BufferedReader
 import java.io.File
 import java.io.FileNotFoundException
+import java.io.FileOutputStream
 import java.io.InputStreamReader
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -157,9 +158,13 @@ class PlaylistRepositoryImpl @Inject constructor(
 
             val uri = Uri.parse(filePath)
 
-            context.contentResolver.openOutputStream(uri)?.use { outputStream ->
-                outputStream.write(jsonString.toByteArray())
-            } ?: throw FileNotFoundException("Could not open output stream for $uri")
+            val outputStream = if (uri.scheme == "file") {
+                FileOutputStream(File(requireNotNull(uri.path) { "Invalid file URI: $uri" }))
+            } else {
+                context.contentResolver.openOutputStream(uri)
+                    ?: throw FileNotFoundException("Could not open output stream for $uri")
+            }
+            outputStream.use { it.write(jsonString.toByteArray()) }
 
             true
         } catch (e: Exception) {
@@ -181,8 +186,9 @@ class PlaylistRepositoryImpl @Inject constructor(
                     BufferedReader(InputStreamReader(inputStream)).readText()
                 } ?: throw FileNotFoundException("Could not open input stream for $uri")
             } catch (e: FileNotFoundException) {
-                val file = File(filePath)
-                if (file.exists()) file.readText() else return@withContext ImportResult(0,0,0,0)
+                val fallbackPath = uri.path
+                val file = if (fallbackPath != null) File(fallbackPath) else File(filePath)
+                if (file.exists()) file.readText() else return@withContext ImportResult(0, 0, 0, 0)
             }
 
             val lenientJson = Json { ignoreUnknownKeys = true }

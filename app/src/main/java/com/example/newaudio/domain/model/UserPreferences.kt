@@ -47,7 +47,7 @@ data class UserPreferences(
             miniPlayerProgressBarHeight = 30f,
             fullScreenPlayerProgressBarHeight = 30f,
             oneHandedMode = false,
-            useMarquee = false,
+            useMarquee = true,
             showHiddenFiles = false,
             playOnFolderClick = false,
             showFolderSongCount = false,

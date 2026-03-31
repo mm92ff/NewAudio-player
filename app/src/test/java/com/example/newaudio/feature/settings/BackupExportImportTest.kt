@@ -37,9 +37,12 @@ import kotlinx.coroutines.test.resetMain
 import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.test.setMain
 import org.junit.After
+import com.example.newaudio.domain.model.LogLevel
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
+import org.junit.Assert.assertFalse
 import org.junit.Before
 import org.junit.Test
 
@@ -132,5 +135,119 @@ class BackupExportImportTest {
         val afterImport = settingsRepo.userPreferences.first()
         assertEquals(originalPrefs.theme, afterImport.theme)
         assertEquals(originalPrefs.primaryColor, afterImport.primaryColor)
+    }
+
+    // --- Bug-Fix Regression Tests ---
+
+    @Test
+    fun `exportPlaylistsSuspend with notifyResult=false sends no event`() = runTest {
+        val vm = buildViewModel()
+        backgroundScope.launch { vm.settingsState.collect {} }
+        advanceUntilIdle()
+
+        val receivedEvents = mutableListOf<SettingsEvent>()
+        backgroundScope.launch { vm.events.collect { receivedEvents.add(it) } }
+        advanceUntilIdle()
+
+        vm.exportPlaylistsSuspend("file://test.json", notifyResult = false)
+        advanceUntilIdle()
+
+        assertTrue("No event expected when notifyResult=false", receivedEvents.isEmpty())
+    }
+
+    @Test
+    fun `exportPlaylistsSuspend with notifyResult=true sends success event`() = runTest {
+        playlistRepo.exportReturnValue = true
+        val vm = buildViewModel()
+        backgroundScope.launch { vm.settingsState.collect {} }
+        advanceUntilIdle()
+
+        val receivedEvents = mutableListOf<SettingsEvent>()
+        backgroundScope.launch { vm.events.collect { receivedEvents.add(it) } }
+        advanceUntilIdle()
+
+        vm.exportPlaylistsSuspend("file://test.json", notifyResult = true)
+        advanceUntilIdle()
+
+        assertEquals(1, receivedEvents.size)
+        assertTrue(receivedEvents[0] is SettingsEvent.ShowMessage)
+    }
+
+    @Test
+    fun `exportPlaylistsSuspend with notifyResult=false when export fails sends no event`() = runTest {
+        playlistRepo.exportReturnValue = false
+        val vm = buildViewModel()
+        backgroundScope.launch { vm.settingsState.collect {} }
+        advanceUntilIdle()
+
+        val receivedEvents = mutableListOf<SettingsEvent>()
+        backgroundScope.launch { vm.events.collect { receivedEvents.add(it) } }
+        advanceUntilIdle()
+
+        vm.exportPlaylistsSuspend("file://test.json", notifyResult = false)
+        advanceUntilIdle()
+
+        assertTrue("No event expected when notifyResult=false even on failure", receivedEvents.isEmpty())
+    }
+
+    @Test
+    fun `exportPlaylistsSuspend with notifyResult=true when export fails sends error event`() = runTest {
+        playlistRepo.exportReturnValue = false
+        val vm = buildViewModel()
+        backgroundScope.launch { vm.settingsState.collect {} }
+        advanceUntilIdle()
+
+        val receivedEvents = mutableListOf<SettingsEvent>()
+        backgroundScope.launch { vm.events.collect { receivedEvents.add(it) } }
+        advanceUntilIdle()
+
+        vm.exportPlaylistsSuspend("file://test.json", notifyResult = true)
+        advanceUntilIdle()
+
+        assertEquals(1, receivedEvents.size)
+        assertTrue(receivedEvents[0] is SettingsEvent.ShowMessage)
+    }
+
+    @Test
+    fun `onImportPlaylists logs error when repository throws`() = runTest {
+        playlistRepo.importShouldThrow = true
+        val vm = buildViewModel()
+        advanceUntilIdle()
+
+        vm.onImportPlaylists("file://test.json")
+        advanceUntilIdle()
+
+        // safeLaunch catch block logs ERROR — synchronous and reliably checkable
+        assertTrue(errorRepo.logs.any { it.level == LogLevel.ERROR })
+        // Settings must NOT be restored when import fails
+        assertEquals(UserPreferences.default().theme, settingsRepo.userPreferences.first().theme)
+    }
+
+    @Test
+    fun `onExportPlaylists logs error when repository throws`() = runTest {
+        playlistRepo.exportShouldThrow = true
+        val vm = buildViewModel()
+        backgroundScope.launch { vm.settingsState.collect {} }
+        advanceUntilIdle()
+
+        vm.onExportPlaylists("file://test.json")
+        advanceUntilIdle()
+
+        // safeLaunch catch block logs ERROR — synchronous and reliably checkable
+        assertTrue(errorRepo.logs.any { it.level == LogLevel.ERROR })
+        // Repository must not have recorded a successful export
+        assertFalse(playlistRepo.exportCalled)
+    }
+
+    // --- UserPreferences.default() consistency (Bug 5 fix regression) ---
+
+    @Test
+    fun `UserPreferences default has consistent marquee values`() {
+        val defaults = UserPreferences.default()
+        assertEquals(
+            "useMarquee must equal isMarqueeEnabled in default()",
+            defaults.isMarqueeEnabled,
+            defaults.useMarquee
+        )
     }
 }

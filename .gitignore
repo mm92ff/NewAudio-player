@@ -49,3 +49,4 @@ githubfolder/
 
 # Governance / internal profiles (not part of the public repo)
 governance/
+*.bat

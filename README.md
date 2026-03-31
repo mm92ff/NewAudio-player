@@ -17,7 +17,13 @@ A modern Android music player built with Jetpack Compose, Media3/ExoPlayer, and 
 
 ## Screenshots
 
-> Add screenshots here
+| File Browser | Song List | Player |
+|:---:|:---:|:---:|
+| ![File Browser](screenshots/file_browser.png) | ![Song List](screenshots/song_list.png) | ![Player](screenshots/player.png) |
+
+| Playlists | Settings |
+|:---:|:---:|
+| ![Playlists](screenshots/playlist.png) | ![Settings](screenshots/settings.png) |
 
 ## Requirements
 

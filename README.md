@@ -53,8 +53,8 @@ A modern Android music player built with Jetpack Compose, Media3/ExoPlayer, and 
 ### Clone & Run
 
 ```bash
-git clone https://github.com/<your-username>/newaudio.git
-cd newaudio
+git clone https://github.com/mm92ff/NewAudio-player.git
+cd NewAudio-player
 ```
 
 Open the project in Android Studio and run on a device or emulator (API 23+).

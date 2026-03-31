@@ -103,4 +103,4 @@ app/src/main/java/com/example/newaudio/
 
 ## License
 
-This project is for personal/educational use. See [LICENSE](LICENSE) for details.
+This project is licensed under the [MIT License](LICENSE).

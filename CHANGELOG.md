@@ -7,6 +7,10 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+---
+
+## [2.3.3-beta] — 2026-03-31
+
 ### Added
 - Unit tests for `BackupExportImportTest` (10 tests) covering export/import correctness, error paths, and regression cases
 - Unit tests for `SettingsUseCasesTest` (32 tests) covering all settings use cases

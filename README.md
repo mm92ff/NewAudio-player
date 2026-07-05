@@ -26,13 +26,13 @@ NewAudio is a modern Android audio and video player built with Jetpack Compose, 
 |:---:|:---:|:---:|
 | ![Audio Browser](screenshots/file_browser.png) | ![Song List](screenshots/song_list.png) | ![Audio Player](screenshots/player.png) |
 
-| Video Gallery | Inline Video Player | Playlists |
-|:---:|:---:|:---:|
-| ![Video Gallery](screenshots/video_browser.png) | ![Inline Video Player](screenshots/video_inline.png) | ![Playlists](screenshots/playlist.png) |
+| Video Gallery | Inline Video Player |
+|:---:|:---:|
+| ![Video Gallery](screenshots/video_browser.png) | ![Inline Video Player](screenshots/video_inline.png) |
 
-| Settings |
-|:---:|
-| ![Settings](screenshots/settings.png) |
+| Playlists | Settings |
+|:---:|:---:|
+| ![Playlists](screenshots/playlist.png) | ![Settings](screenshots/settings.png) |
 
 ## Requirements
 

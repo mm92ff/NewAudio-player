@@ -12,4 +12,5 @@ interface IMediaStoreObserverRepository {
      * The flow is debounced to avoid multiple emissions for a single event.
      */
     fun observeAudioChanges(): Flow<Unit>
+    fun observeVideoChanges(): Flow<Unit>
 }

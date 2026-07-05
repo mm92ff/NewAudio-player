@@ -53,16 +53,22 @@ fun PermissionAndSetupManager(
     val viewModel: PermissionViewModel = hiltViewModel()
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
 
-    var isFolderSetupSkipped by remember { mutableStateOf(false) }
+    var isMusicFolderSetupSkipped by remember { mutableStateOf(false) }
+    var isVideoFolderSetupSkipped by remember { mutableStateOf(false) }
 
-    val audioPermission = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-        Manifest.permission.READ_MEDIA_AUDIO
-    } else {
-        Manifest.permission.READ_EXTERNAL_STORAGE
+    val mediaPermissions = remember {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            listOf(
+                Manifest.permission.READ_MEDIA_AUDIO,
+                Manifest.permission.READ_MEDIA_VIDEO
+            )
+        } else {
+            listOf(Manifest.permission.READ_EXTERNAL_STORAGE)
+        }
     }
 
     var isGranted by remember {
-        mutableStateOf(checkPermission(context, audioPermission))
+        mutableStateOf(mediaPermissions.all { checkPermission(context, it) })
     }
 
     var showRationaleScreen by remember { mutableStateOf(false) }
@@ -70,7 +76,9 @@ fun PermissionAndSetupManager(
     val launcher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.RequestMultiplePermissions()
     ) { permissions ->
-        val granted = permissions[audioPermission] == true || checkPermission(context, audioPermission)
+        val granted = mediaPermissions.all { permission ->
+            permissions[permission] == true || checkPermission(context, permission)
+        }
         isGranted = granted
 
         if (!granted) {
@@ -81,7 +89,7 @@ fun PermissionAndSetupManager(
     DisposableEffect(lifecycleOwner) {
         val observer = LifecycleEventObserver { _, event ->
             if (event == Lifecycle.Event.ON_RESUME) {
-                isGranted = checkPermission(context, audioPermission)
+                isGranted = mediaPermissions.all { checkPermission(context, it) }
                 if (isGranted) {
                     showRationaleScreen = false
                 }
@@ -104,17 +112,29 @@ fun PermissionAndSetupManager(
                 }
             }
             is PermissionUiState.Success -> {
-                if (state.isMusicFolderSet || isFolderSetupSkipped) {
-                    onPermissionGranted()
-                } else {
+                if (!state.isMusicFolderSet && !isMusicFolderSetupSkipped) {
                     MusicFolderSetupScreen(
                         onFolderSelected = { path ->
                             viewModel.onMusicFolderSelected(path)
                         },
                         onSkip = {
-                            isFolderSetupSkipped = true
+                            isMusicFolderSetupSkipped = true
                         }
                     )
+                } else if (!state.isVideoFolderSet && !isVideoFolderSetupSkipped) {
+                    VideoFolderSetupScreen(
+                        onFolderSelected = { path ->
+                            viewModel.onVideoFolderSelected(path)
+                        },
+                        onUseDefaultFolder = { path ->
+                            viewModel.onVideoFolderSelected(path)
+                        },
+                        onSkip = {
+                            isVideoFolderSetupSkipped = true
+                        }
+                    )
+                } else {
+                    onPermissionGranted()
                 }
             }
             is PermissionUiState.Error -> {
@@ -138,7 +158,8 @@ fun PermissionAndSetupManager(
                     Spacer(modifier = Modifier.height(Dimens.PaddingLarge))
                     Button(
                         onClick = {
-                            isFolderSetupSkipped = true
+                            isMusicFolderSetupSkipped = true
+                            isVideoFolderSetupSkipped = true
                         },
                         modifier = Modifier.fillMaxWidth(0.8f)
                     ) {
@@ -150,7 +171,7 @@ fun PermissionAndSetupManager(
     } else {
         LaunchedEffect(Unit) {
             if (!showRationaleScreen) {
-                val permsToRequest = mutableListOf(audioPermission)
+                val permsToRequest = mediaPermissions.toMutableList()
                 if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
                     permsToRequest.add(Manifest.permission.POST_NOTIFICATIONS)
                 }
@@ -161,7 +182,7 @@ fun PermissionAndSetupManager(
         if (showRationaleScreen) {
             PermissionRationaleScreen(
                 onGrantClick = {
-                    val permsToRequest = mutableListOf(audioPermission)
+                    val permsToRequest = mediaPermissions.toMutableList()
                     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
                         permsToRequest.add(Manifest.permission.POST_NOTIFICATIONS)
                     }
@@ -173,7 +194,9 @@ fun PermissionAndSetupManager(
                     }
                     context.startActivity(intent)
                 },
-                showSettingsLink = !ActivityCompat.shouldShowRequestPermissionRationale(context as Activity, audioPermission)
+                showSettingsLink = mediaPermissions.none {
+                    ActivityCompat.shouldShowRequestPermissionRationale(context as Activity, it)
+                }
             )
         }
     }

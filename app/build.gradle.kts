@@ -100,12 +100,15 @@ dependencies {
     // --- MEDIA3 (ExoPlayer & Session) ---
     implementation("androidx.media3:media3-exoplayer:1.3.1")
     implementation("androidx.media3:media3-session:1.3.1")
+    implementation("androidx.media3:media3-ui:1.3.1")
 
     // --- DATA & STORAGE ---
     implementation("androidx.datastore:datastore-preferences:1.1.1")
     implementation(libs.kotlinx.collections.immutable)
     implementation("commons-io:commons-io:2.15.1")
     implementation("androidx.documentfile:documentfile:1.0.1")
+    implementation("io.coil-kt:coil-compose:2.6.0")
+    implementation("io.coil-kt:coil-video:2.6.0")
     
     // --- DATABASE (Room) ---
     val roomVersion = "2.6.1"
@@ -121,6 +124,7 @@ dependencies {
     testImplementation(libs.junit)
     testImplementation("org.jetbrains.kotlinx:kotlinx-coroutines-test:1.8.0")
     testImplementation("io.mockk:mockk:1.13.10")
+    testImplementation("org.robolectric:robolectric:4.12.2")
     debugImplementation(libs.androidx.compose.ui.tooling)
     androidTestImplementation(libs.androidx.junit)
 }

@@ -4,7 +4,13 @@ import android.content.Context
 import android.net.Uri
 import com.example.newaudio.data.database.PlaylistEntity
 import com.example.newaudio.data.database.PlaylistSongEntity
+import com.example.newaudio.data.database.VideoDao
+import com.example.newaudio.data.database.VideoMarkerEntity
+import com.example.newaudio.data.database.VideoPlaylistEntity
+import com.example.newaudio.data.database.VideoPlaylistItemEntity
 import com.example.newaudio.data.database.dao.PlaylistDao
+import com.example.newaudio.data.database.dao.VideoMarkerDao
+import com.example.newaudio.data.database.dao.VideoPlaylistDao
 import com.example.newaudio.di.IoDispatcher
 import com.example.newaudio.domain.model.Playlist
 import com.example.newaudio.domain.model.Song
@@ -14,6 +20,9 @@ import com.example.newaudio.domain.repository.ImportResult
 import com.example.newaudio.domain.repository.PlaylistExportContainer
 import com.example.newaudio.domain.repository.PlaylistExportModel
 import com.example.newaudio.domain.repository.SongExportModel
+import com.example.newaudio.domain.repository.VideoExportModel
+import com.example.newaudio.domain.repository.VideoMarkerExportModel
+import com.example.newaudio.domain.repository.VideoPlaylistExportModel
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.flow.Flow
@@ -35,6 +44,9 @@ import javax.inject.Singleton
 @Singleton
 class PlaylistRepositoryImpl @Inject constructor(
     private val playlistDao: PlaylistDao,
+    private val videoPlaylistDao: VideoPlaylistDao,
+    private val videoDao: VideoDao,
+    private val videoMarkerDao: VideoMarkerDao,
     @ApplicationContext private val context: Context,
     @IoDispatcher private val ioDispatcher: CoroutineDispatcher
 ) : IPlaylistRepository {
@@ -153,7 +165,40 @@ class PlaylistRepositoryImpl @Inject constructor(
                 )
             }
 
-            val container = PlaylistExportContainer(playlists = exportList, settings = userPreferences)
+            val videoPlaylists = videoPlaylistDao.getAllVideoPlaylists().first()
+            val videoExportList = videoPlaylists.map { entity ->
+                val videos = videoPlaylistDao.getVideosInPlaylist(entity.id).first()
+                VideoPlaylistExportModel(
+                    name = entity.name,
+                    createdAt = entity.createdAt,
+                    videos = videos.map {
+                        VideoExportModel(
+                            path = it.path,
+                            title = it.title,
+                            duration = it.duration,
+                            size = it.size
+                        )
+                    }
+                )
+            }
+
+            val container = PlaylistExportContainer(
+                playlists = exportList,
+                settings = userPreferences,
+                videoPlaylists = videoExportList,
+                videoMarkers = videoMarkerDao.getAllMarkers().map { marker ->
+                    VideoMarkerExportModel(
+                        videoPath = marker.videoPath,
+                        fileHash = marker.fileHash,
+                        filename = marker.filename,
+                        fileSize = marker.fileSize,
+                        durationMs = marker.durationMs,
+                        positionMs = marker.positionMs,
+                        createdAt = marker.createdAt,
+                        updatedAt = marker.updatedAt
+                    )
+                }
+            )
             val jsonString = Json.encodeToString(container)
 
             val uri = Uri.parse(filePath)
@@ -246,10 +291,90 @@ class PlaylistRepositoryImpl @Inject constructor(
                 playlistDao.importPlaylistWithSongs(playlistEntity, resolvedSongs)
                 playlistsImported++
             }
+
+            container.videoPlaylists.forEachIndexed { pIdx, exportModel ->
+                val playlistEntity = VideoPlaylistEntity(
+                    name = exportModel.name,
+                    position = pIdx,
+                    createdAt = exportModel.createdAt
+                )
+
+                val resolvedVideos = mutableListOf<VideoPlaylistItemEntity>()
+
+                exportModel.videos.forEachIndexed { index, videoExport ->
+                    var finalPath: String? = null
+
+                    val directMatch = videoPlaylistDao.findVideoByPath(videoExport.path)
+                    if (directMatch != null) {
+                        finalPath = directMatch.path
+                        songsFound++
+                    } else {
+                        val fileName = File(videoExport.path).name
+                        val sizeMatch = if (videoExport.size > 0) {
+                            videoPlaylistDao.findVideoByFilenameAndSize(fileName, videoExport.size)
+                        } else {
+                            null
+                        }
+
+                        if (sizeMatch != null) {
+                            finalPath = sizeMatch.path
+                            songsFixed++
+                        } else if (File(videoExport.path).exists()) {
+                            finalPath = videoExport.path
+                            songsFound++
+                        }
+                    }
+
+                    if (finalPath != null) {
+                        resolvedVideos.add(VideoPlaylistItemEntity(0L, finalPath, index))
+                    } else {
+                        songsNotFound++
+                    }
+                }
+
+                videoPlaylistDao.importPlaylistWithVideos(playlistEntity, resolvedVideos)
+                playlistsImported++
+            }
+
+            container.videoMarkers.forEach { markerExport ->
+                val video = resolveMarkerVideo(markerExport) ?: run {
+                    songsNotFound++
+                    return@forEach
+                }
+                val duplicate = videoMarkerDao.getMarkersForVideo(video.path)
+                    .any { marker -> kotlin.math.abs(marker.positionMs - markerExport.positionMs) <= 1_000L }
+                if (!duplicate) {
+                    videoMarkerDao.insert(
+                        VideoMarkerEntity(
+                            videoPath = video.path,
+                            fileHash = video.fileHash ?: markerExport.fileHash,
+                            filename = video.filename,
+                            fileSize = video.size.takeIf { it > 0L } ?: markerExport.fileSize,
+                            durationMs = video.duration.takeIf { it > 0L } ?: markerExport.durationMs,
+                            positionMs = markerExport.positionMs.coerceIn(
+                                0L,
+                                (video.duration.takeIf { it > 0L } ?: markerExport.durationMs).coerceAtLeast(0L)
+                            ),
+                            createdAt = markerExport.createdAt,
+                            updatedAt = System.currentTimeMillis()
+                        )
+                    )
+                    songsFixed++
+                }
+            }
         } catch (e: Exception) {
             Timber.e(e, "Import failed")
         }
 
         ImportResult(playlistsImported, songsFound, songsFixed, songsNotFound, restoredPreferences)
     }
+
+    private suspend fun resolveMarkerVideo(markerExport: VideoMarkerExportModel) =
+        videoDao.getVideoByPath(markerExport.videoPath)
+            ?: markerExport.fileHash?.let { videoDao.findVideoByHash(it) }
+            ?: videoDao.findVideoByFilenameSizeAndDuration(
+                filename = markerExport.filename,
+                size = markerExport.fileSize,
+                duration = markerExport.durationMs
+            )
 }

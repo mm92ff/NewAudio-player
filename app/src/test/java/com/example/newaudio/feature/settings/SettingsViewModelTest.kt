@@ -1,8 +1,8 @@
 package com.example.newaudio.feature.settings
 
 import com.example.newaudio.domain.model.UserPreferences
-import com.example.newaudio.domain.usecase.file.GetRootPathUseCase
 import com.example.newaudio.domain.usecase.file.SetMusicFolderUseCase
+import com.example.newaudio.domain.usecase.file.SetVideoFolderUseCase
 import com.example.newaudio.domain.usecase.settings.GetUserSettingsUseCase
 import com.example.newaudio.domain.usecase.settings.ResetDatabaseUseCase
 import com.example.newaudio.domain.usecase.settings.SetAutoPlayOnBluetoothUseCase
@@ -11,6 +11,12 @@ import com.example.newaudio.domain.usecase.settings.SetMiniPlayerProgressBarHeig
 import com.example.newaudio.domain.usecase.settings.SetOneHandedModeUseCase
 import com.example.newaudio.domain.usecase.settings.SetPlayOnFolderClickUseCase
 import com.example.newaudio.domain.usecase.settings.SetPrimaryColorUseCase
+import com.example.newaudio.domain.usecase.settings.SetResumeSessionOnModeSwitchUseCase
+import com.example.newaudio.domain.usecase.settings.SetShowVideoNamesInGalleryUseCase
+import com.example.newaudio.domain.usecase.settings.SetShowVideoPreviewItemsUseCase
+import com.example.newaudio.domain.usecase.settings.SetVideoDisplayModeUseCase
+import com.example.newaudio.domain.usecase.settings.SetVideoGalleryColumnsUseCase
+import com.example.newaudio.domain.usecase.settings.SetVideoMarkersEnabledUseCase
 import com.example.newaudio.domain.usecase.settings.SetBackgroundGradientEnabledUseCase
 import com.example.newaudio.domain.usecase.settings.SetTransparentListItemsUseCase
 import com.example.newaudio.domain.usecase.settings.RestoreUserPreferencesUseCase
@@ -58,6 +64,7 @@ class SettingsViewModelTest {
         setThemeUseCase = SetThemeUseCase(settingsRepo),
         setPrimaryColorUseCase = SetPrimaryColorUseCase(settingsRepo),
         setMusicFolderUseCase = SetMusicFolderUseCase(settingsRepo, scannerRepo),
+        setVideoFolderUseCase = SetVideoFolderUseCase(settingsRepo, scannerRepo),
         setMiniPlayerProgressBarHeightUseCase = SetMiniPlayerProgressBarHeightUseCase(settingsRepo),
         setFullScreenPlayerProgressBarHeightUseCase = SetFullScreenPlayerProgressBarHeightUseCase(settingsRepo),
         setAutoPlayOnBluetoothUseCase = SetAutoPlayOnBluetoothUseCase(settingsRepo),
@@ -65,6 +72,12 @@ class SettingsViewModelTest {
         setUseMarqueeUseCase = SetUseMarqueeUseCase(settingsRepo),
         setShowHiddenFilesUseCase = SetShowHiddenFilesUseCase(settingsRepo),
         setPlayOnFolderClickUseCase = SetPlayOnFolderClickUseCase(settingsRepo),
+        setResumeSessionOnModeSwitchUseCase = SetResumeSessionOnModeSwitchUseCase(settingsRepo),
+        setShowVideoPreviewItemsUseCase = SetShowVideoPreviewItemsUseCase(settingsRepo),
+        setShowVideoNamesInGalleryUseCase = SetShowVideoNamesInGalleryUseCase(settingsRepo),
+        setVideoMarkersEnabledUseCase = SetVideoMarkersEnabledUseCase(settingsRepo),
+        setVideoDisplayModeUseCase = SetVideoDisplayModeUseCase(settingsRepo),
+        setVideoGalleryColumnsUseCase = SetVideoGalleryColumnsUseCase(settingsRepo),
         setShowFolderSongCountUseCase = SetShowFolderSongCountUseCase(settingsRepo),
         setBackgroundTintFractionUseCase = SetBackgroundTintFractionUseCase(settingsRepo),
         setBackgroundGradientEnabledUseCase = SetBackgroundGradientEnabledUseCase(settingsRepo),
@@ -192,5 +205,97 @@ class SettingsViewModelTest {
         vm.onTransparentListItemsChange(false)
         advanceUntilIdle()
         assertFalse(settingsRepo.userPreferences.first().transparentListItems)
+    }
+
+    @Test
+    fun `onShowVideoPreviewItemsChange enables video preview items`() = runTest {
+        val vm = buildViewModel()
+        advanceUntilIdle()
+        vm.onShowVideoPreviewItemsChange(true)
+        advanceUntilIdle()
+        assertTrue(settingsRepo.userPreferences.first().showVideoPreviewItems)
+    }
+
+    @Test
+    fun `onShowVideoPreviewItemsChange disables video preview items`() = runTest {
+        val vm = buildViewModel()
+        advanceUntilIdle()
+        vm.onShowVideoPreviewItemsChange(true)
+        advanceUntilIdle()
+        vm.onShowVideoPreviewItemsChange(false)
+        advanceUntilIdle()
+        assertFalse(settingsRepo.userPreferences.first().showVideoPreviewItems)
+    }
+
+    @Test
+    fun `onVideoDisplayModeChange stores square gallery mode`() = runTest {
+        val vm = buildViewModel()
+        advanceUntilIdle()
+        vm.onVideoDisplayModeChange(UserPreferences.VideoDisplayMode.GALLERY_SQUARE)
+        advanceUntilIdle()
+        assertEquals(
+            UserPreferences.VideoDisplayMode.GALLERY_SQUARE,
+            settingsRepo.userPreferences.first().videoDisplayMode
+        )
+    }
+
+    @Test
+    fun `onVideoDisplayModeChange stores adaptive gallery mode`() = runTest {
+        val vm = buildViewModel()
+        advanceUntilIdle()
+        vm.onVideoDisplayModeChange(UserPreferences.VideoDisplayMode.GALLERY_ADAPTIVE)
+        advanceUntilIdle()
+        assertEquals(
+            UserPreferences.VideoDisplayMode.GALLERY_ADAPTIVE,
+            settingsRepo.userPreferences.first().videoDisplayMode
+        )
+    }
+
+    @Test
+    fun `onVideoDisplayModeChange stores filled gallery mode`() = runTest {
+        val vm = buildViewModel()
+        advanceUntilIdle()
+        vm.onVideoDisplayModeChange(UserPreferences.VideoDisplayMode.GALLERY_FILLED)
+        advanceUntilIdle()
+        assertEquals(
+            UserPreferences.VideoDisplayMode.GALLERY_FILLED,
+            settingsRepo.userPreferences.first().videoDisplayMode
+        )
+    }
+
+    @Test
+    fun `onVideoGalleryColumnsChange stores selected column count`() = runTest {
+        val vm = buildViewModel()
+        advanceUntilIdle()
+        vm.onVideoGalleryColumnsChange(4)
+        advanceUntilIdle()
+        assertEquals(4, settingsRepo.userPreferences.first().videoGalleryColumns)
+    }
+
+    @Test
+    fun `onShowVideoNamesInGalleryChange stores selected state`() = runTest {
+        val vm = buildViewModel()
+        advanceUntilIdle()
+        vm.onShowVideoNamesInGalleryChange(true)
+        advanceUntilIdle()
+        assertTrue(settingsRepo.userPreferences.first().showVideoNamesInGallery)
+
+        vm.onShowVideoNamesInGalleryChange(false)
+        advanceUntilIdle()
+        assertFalse(settingsRepo.userPreferences.first().showVideoNamesInGallery)
+    }
+
+    @Test
+    fun `onVideoMarkersEnabledChange stores selected state`() = runTest {
+        val vm = buildViewModel()
+        advanceUntilIdle()
+
+        vm.onVideoMarkersEnabledChange(true)
+        advanceUntilIdle()
+        assertTrue(settingsRepo.userPreferences.first().videoMarkersEnabled)
+
+        vm.onVideoMarkersEnabledChange(false)
+        advanceUntilIdle()
+        assertFalse(settingsRepo.userPreferences.first().videoMarkersEnabled)
     }
 }

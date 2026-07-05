@@ -27,7 +27,9 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.viewinterop.AndroidView
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.media3.ui.PlayerView
 import com.example.newaudio.R
 import com.example.newaudio.domain.repository.IEqualizerRepository
 import com.example.newaudio.feature.player.composables.PlayerAlbumArt
@@ -114,11 +116,13 @@ fun FullScreenPlayer(
         topBar = {
             PlayerTopAppBar(
                 onBackClicked = onBackClicked,
-                onEqualizerClicked = { showEqualizerSheet = true }
+                onEqualizerClicked = { showEqualizerSheet = true },
+                showEqualizer = uiState.currentVideo == null
             )
         }
     ) { innerPadding ->
         val song = uiState.currentSong
+        val video = uiState.currentVideo
 
         Column(
             modifier = Modifier
@@ -134,40 +138,55 @@ fun FullScreenPlayer(
             ) {
                 val artSize = min(maxWidth.value, maxHeight.value).dp * 0.9f
 
-                Column(
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                    verticalArrangement = Arrangement.Center
-                ) {
-                    PlayerAlbumArt(
-                        songPath = song?.path,
-                        modifier = Modifier
-                            .size(artSize)
-                            .clip(MaterialTheme.shapes.medium)
-                            .clickable { onShowSongMetadata() }
-                    )
-
-                    Spacer(modifier = Modifier.height(Dimens.PaddingLarge))
-
-                    SongDetails(
-                        title = song?.title,
-                        artist = song?.artist,
-                        useMarquee = uiState.useMarquee,
-                        modifier = Modifier.clickable { onBackClicked() }
-                    )
-
-                    Spacer(modifier = Modifier.height(Dimens.PaddingMedium))
-
-                    errorMessage?.let { message ->
-                        Text(
-                            text = stringResource(R.string.error_prefix, message),
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.error,
-                            textAlign = TextAlign.Center,
-                            modifier = Modifier.clickable {
-                                errorMessage = null
-                                onErrorShown()
+                if (video != null && uiState.player != null) {
+                    AndroidView(
+                        factory = { context ->
+                            PlayerView(context).apply {
+                                player = uiState.player
+                                useController = false
                             }
+                        },
+                        update = { playerView ->
+                            playerView.player = uiState.player
+                        },
+                        modifier = Modifier.fillMaxSize()
+                    )
+                } else {
+                    Column(
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        verticalArrangement = Arrangement.Center
+                    ) {
+                        PlayerAlbumArt(
+                            songPath = song?.path,
+                            modifier = Modifier
+                                .size(artSize)
+                                .clip(MaterialTheme.shapes.medium)
+                                .clickable { onShowSongMetadata() }
                         )
+
+                        Spacer(modifier = Modifier.height(Dimens.PaddingLarge))
+
+                        SongDetails(
+                            title = song?.title,
+                            artist = song?.artist,
+                            useMarquee = uiState.useMarquee,
+                            modifier = Modifier.clickable { onBackClicked() }
+                        )
+
+                        Spacer(modifier = Modifier.height(Dimens.PaddingMedium))
+
+                        errorMessage?.let { message ->
+                            Text(
+                                text = stringResource(R.string.error_prefix, message),
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = MaterialTheme.colorScheme.error,
+                                textAlign = TextAlign.Center,
+                                modifier = Modifier.clickable {
+                                    errorMessage = null
+                                    onErrorShown()
+                                }
+                            )
+                        }
                     }
                 }
             }

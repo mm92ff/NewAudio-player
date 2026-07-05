@@ -23,6 +23,7 @@ import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.example.newaudio.R
+import com.example.newaudio.domain.model.UserPreferences.VideoDisplayMode
 import com.example.newaudio.feature.settings.composables.*
 import com.example.newaudio.feature.settings.composables.LocalSettingsCardStyle
 import com.example.newaudio.feature.settings.composables.SettingsCardStyle
@@ -76,6 +77,18 @@ fun SettingsScreen(
                 Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_WRITE_URI_PERMISSION
             )
             viewModel.onMusicFolderChange(it.toString())
+        }
+    }
+
+    val videoFolderPickerLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.OpenDocumentTree()
+    ) { uri: Uri? ->
+        uri?.let {
+            context.contentResolver.takePersistableUriPermission(
+                it,
+                Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_WRITE_URI_PERMISSION
+            )
+            viewModel.onVideoFolderChange(it.toString())
         }
     }
 
@@ -166,7 +179,32 @@ fun SettingsScreen(
             item { MarqueeSetting(settings.useMarquee, viewModel::onUseMarqueeChange) }
             item { OneHandedModeSetting(settings.oneHandedMode, viewModel::onOneHandedModeChange) }
             item { ShowHiddenFilesSetting(settings.showHiddenFiles, viewModel::onShowHiddenFilesChange) }
+            item { VideoDisplayModeSetting(settings.videoDisplayMode, viewModel::onVideoDisplayModeChange) }
+            item { VideoMarkersSetting(settings.videoMarkersEnabled, viewModel::onVideoMarkersEnabledChange) }
+            if (settings.videoDisplayMode == VideoDisplayMode.GALLERY_SQUARE ||
+                settings.videoDisplayMode == VideoDisplayMode.GALLERY_ADAPTIVE ||
+                settings.videoDisplayMode == VideoDisplayMode.GALLERY_FILLED
+            ) {
+                item {
+                    VideoGalleryColumnsSetting(
+                        selectedColumns = settings.videoGalleryColumns,
+                        onColumnsSelected = viewModel::onVideoGalleryColumnsChange
+                    )
+                }
+                item {
+                    ShowVideoNamesInGallerySetting(
+                        isEnabled = settings.showVideoNamesInGallery,
+                        onCheckedChange = viewModel::onShowVideoNamesInGalleryChange
+                    )
+                }
+            }
             item { PlayOnFolderClickSetting(settings.playOnFolderClick, viewModel::onPlayOnFolderClickChange) }
+            item {
+                ResumeSessionOnModeSwitchSetting(
+                    settings.resumeSessionOnModeSwitch,
+                    viewModel::onResumeSessionOnModeSwitchChange
+                )
+            }
             item { ShowFolderSongCountSetting(settings.showFolderSongCount, viewModel::onShowFolderSongCountChange) }
             item { ThemeSetting(settings.theme, viewModel::onThemeChange) }
             item { ColorSetting(settings.primaryColor, viewModel::onPrimaryColorChange) }
@@ -184,6 +222,7 @@ fun SettingsScreen(
                 )
             }
             item { MusicFolderSetting(settings.musicFolderPath) { folderPickerLauncher.launch(null) } }
+            item { VideoFolderSetting(settings.videoFolderPath) { videoFolderPickerLauncher.launch(null) } }
             item { BluetoothAutoplaySetting(settings.isAutoPlayOnBluetooth, viewModel::onAutoPlayOnBluetoothChange) }
 
             item {

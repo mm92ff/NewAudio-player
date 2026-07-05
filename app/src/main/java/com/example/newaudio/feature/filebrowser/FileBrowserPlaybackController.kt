@@ -109,4 +109,22 @@ internal class FileBrowserPlaybackController(
             }
         }
     }
+
+    fun playVideoFile(file: FileItem.VideoFile) {
+        scope.launch {
+            val currentItems = uiState.value.fileItems
+
+            val playlist = currentItems
+                .filterIsInstance<FileItem.VideoFile>()
+                .map { it.video }
+
+            val folderPath = java.io.File(file.video.path).parent
+            if (playlist.isNotEmpty()) {
+                val startIndex = playlist.indexOfFirst { it.path == file.video.path }.coerceAtLeast(0)
+                mediaRepository.playVideoPlaylist(playlist, startIndex, folderPath)
+            } else {
+                mediaRepository.playVideoPlaylist(listOf(file.video), 0, folderPath)
+            }
+        }
+    }
 }

@@ -2,7 +2,9 @@ package com.example.newaudio.domain.usecase.file
 
 import android.app.Application
 import com.example.newaudio.data.database.SongDao
+import com.example.newaudio.data.database.VideoDao
 import com.example.newaudio.domain.model.FileItem
+import com.example.newaudio.domain.repository.IVideoMarkerRepository
 import com.example.newaudio.domain.usecase.settings.GetUserSettingsUseCase
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.first
@@ -13,14 +15,18 @@ import javax.inject.Inject
 
 class DeleteFileUseCase @Inject constructor(
     private val songDao: SongDao,
+    private val videoDao: VideoDao,
     private val application: Application,
-    private val getUserSettingsUseCase: GetUserSettingsUseCase
+    private val getUserSettingsUseCase: GetUserSettingsUseCase,
+    private val videoMarkerRepository: IVideoMarkerRepository
 ) {
     suspend operator fun invoke(parentPath: String, fileItem: FileItem): Boolean = withContext(Dispatchers.IO) {
         val cr = application.contentResolver
 
         val settings = runCatching { getUserSettingsUseCase().first() }.getOrNull()
-        val tree = settings?.musicFolderPath?.let { SafTreeAccess.parseTree(it) }
+        val musicTree = settings?.musicFolderPath?.let { SafTreeAccess.parseTree(it) }
+        val videoTree = settings?.videoFolderPath?.let { SafTreeAccess.parseTree(it) }
+        val tree = treeForItem(fileItem, musicTree, videoTree)
 
         // Wenn kein Tree gesetzt ist: fallback wie vorher (kann scheitern unter Scoped Storage)
         if (tree == null) {
@@ -44,7 +50,15 @@ class DeleteFileUseCase @Inject constructor(
 
             when (fileItem) {
                 is FileItem.AudioFile -> songDao.deleteByPath(fileItem.path)
-                is FileItem.Folder -> songDao.deleteByFolder(fileItem.path)
+                is FileItem.VideoFile -> {
+                    videoMarkerRepository.deleteMarkersForVideo(fileItem.path)
+                    videoDao.deleteByPath(fileItem.path)
+                }
+                is FileItem.Folder -> {
+                    videoMarkerRepository.deleteMarkersForFolder(fileItem.path)
+                    songDao.deleteByFolder(fileItem.path)
+                    videoDao.deleteByFolder(fileItem.path)
+                }
                 is FileItem.OtherFile -> { /* nichts in DB */ }
             }
 
@@ -52,6 +66,21 @@ class DeleteFileUseCase @Inject constructor(
         } catch (e: Exception) {
             Timber.tag("DeleteFileUseCase").e(e, "SAF delete failed for ${fileItem.path}")
             false
+        }
+    }
+
+    internal fun treeForItem(
+        item: FileItem,
+        musicTree: SafTreeAccess.TreeInfo?,
+        videoTree: SafTreeAccess.TreeInfo?
+    ): SafTreeAccess.TreeInfo? {
+        return when (item) {
+            is FileItem.AudioFile -> musicTree
+            is FileItem.VideoFile -> videoTree
+            is FileItem.Folder -> listOf(videoTree, musicTree)
+                .filterNotNull()
+                .firstOrNull { tree -> SafTreeAccess.containsFsPath(tree, item.path) }
+            is FileItem.OtherFile -> musicTree ?: videoTree
         }
     }
 
@@ -67,7 +96,15 @@ class DeleteFileUseCase @Inject constructor(
             if (ok) {
                 when (fileItem) {
                     is FileItem.AudioFile -> songDao.deleteByPath(fileItem.path)
-                    is FileItem.Folder -> songDao.deleteByFolder(fileItem.path)
+                    is FileItem.VideoFile -> {
+                        videoMarkerRepository.deleteMarkersForVideo(fileItem.path)
+                        videoDao.deleteByPath(fileItem.path)
+                    }
+                    is FileItem.Folder -> {
+                        videoMarkerRepository.deleteMarkersForFolder(fileItem.path)
+                        songDao.deleteByFolder(fileItem.path)
+                        videoDao.deleteByFolder(fileItem.path)
+                    }
                     is FileItem.OtherFile -> {}
                 }
             }

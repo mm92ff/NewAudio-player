@@ -1,9 +1,13 @@
 package com.example.newaudio.feature.filebrowser
 
 import androidx.activity.compose.BackHandler
+import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
+import androidx.compose.foundation.gestures.detectDragGestures
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material.icons.Icons
@@ -16,22 +20,30 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.viewinterop.AndroidView
+import androidx.media3.common.Player
+import androidx.media3.ui.PlayerView
 import com.example.newaudio.R
 import com.example.newaudio.domain.model.FileItem
+import com.example.newaudio.domain.model.MediaBrowserMode
 import com.example.newaudio.domain.model.Playlist
+import com.example.newaudio.domain.model.VideoPlaylist
 import com.example.newaudio.feature.filebrowser.composables.*
 import com.example.newaudio.ui.theme.Dimens
 import kotlinx.coroutines.launch
 
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
 @Composable
 fun FileBrowserScreen(
     uiState: FileBrowserUiState,
+    player: Player?,
     onSettingsClick: () -> Unit,
     onPlaylistClick: () -> Unit,
+    onToggleBrowserMode: () -> Unit,
     onItemClick: (FileItem) -> Unit,
     onFolderIconClick: (FileItem) -> Unit,
     onDeleteClick: (FileItem) -> Unit,
@@ -39,17 +51,27 @@ fun FileBrowserScreen(
     onCopyClick: (FileItem) -> Unit,
     onMoveClick: (FileItem) -> Unit,
     onAddToPlaylistClick: (FileItem.AudioFile) -> Unit,
+    onAddToVideoPlaylistClick: (FileItem.VideoFile) -> Unit,
     onAddToPlaylistConfirmed: (Playlist, FileItem.AudioFile) -> Unit,
+    onAddToVideoPlaylistConfirmed: (VideoPlaylist, FileItem.VideoFile) -> Unit,
     onPasteClick: () -> Unit,
     onCancelClipboard: () -> Unit,
     onNavigateUp: () -> Unit,
+    onExitInlineVideo: () -> Unit,
     onRenameConfirmed: (FileItem, String) -> Unit,
+    onCreateFolderConfirmed: (String) -> Unit,
     onDeleteConfirmed: (FileItem) -> Unit,
     onDismissDialog: () -> Unit,
     onErrorShown: () -> Unit,
     onRefresh: () -> Unit,
     onItemLongClick: (FileItem) -> Unit,
+    onEmptyAreaLongClick: () -> Unit,
     onToggleRepeatMode: () -> Unit,
+    onInlineVideoSwipeNext: () -> Unit,
+    onInlineVideoSwipePrevious: () -> Unit,
+    onToggleVideoFullscreen: () -> Unit,
+    isVideoFullscreen: Boolean,
+    onInlinePlayerViewChanged: (PlayerView?) -> Unit,
     // Multi-Select
     onToggleEditMode: () -> Unit,
     onSelectAll: () -> Unit,
@@ -61,7 +83,9 @@ fun FileBrowserScreen(
     onMoveSelectedDown: () -> Unit,
     onDeleteMultipleConfirmed: (List<FileItem>) -> Unit,
     onAddToPlaylistMultipleConfirmed: (Playlist, List<FileItem.AudioFile>) -> Unit,
+    onAddToVideoPlaylistMultipleConfirmed: (VideoPlaylist, List<FileItem.VideoFile>) -> Unit,
     onCreatePlaylistAndAdd: (String) -> Unit,
+    onCreateVideoPlaylistAndAdd: (String) -> Unit,
     modifier: Modifier = Modifier
 ) {
     val snackbarHostState = remember { SnackbarHostState() }
@@ -108,9 +132,27 @@ fun FileBrowserScreen(
 
     LaunchedEffect(uiState.activeSongPath) {
         uiState.activeSongPath?.let { path ->
-            val dataIndex = uiState.fileItems.indexOfFirst {
-                it is FileItem.AudioFile && it.song.path == path
+            val dataIndex = uiState.fileItems.indexOfFirst { it is FileItem.AudioFile && it.song.path == path }
+            if (dataIndex != -1) {
+                val listIndex = dataIndex + 1
+                val visibleItemsInfo = listState.layoutInfo.visibleItemsInfo
+                val itemInfo = visibleItemsInfo.find { it.index == listIndex }
+
+                val isFullyVisible = itemInfo?.let {
+                    val viewportHeight = listState.layoutInfo.viewportSize.height
+                    it.offset >= 0 && (it.offset + it.size) <= viewportHeight
+                } ?: false
+
+                if (!isFullyVisible) {
+                    listState.animateScrollToItem(listIndex, 0)
+                }
             }
+        }
+    }
+
+    LaunchedEffect(uiState.activeVideoPath) {
+        uiState.activeVideoPath?.let { path ->
+            val dataIndex = uiState.fileItems.indexOfFirst { it is FileItem.VideoFile && it.video.path == path }
             if (dataIndex != -1) {
                 val listIndex = dataIndex + 1
                 val visibleItemsInfo = listState.layoutInfo.visibleItemsInfo
@@ -135,8 +177,18 @@ fun FileBrowserScreen(
         }
     }
 
+    val isInlineVideoVisibleForNavigation = uiState.browserMode == MediaBrowserMode.VIDEO &&
+        uiState.showInlineVideo &&
+        uiState.activeVideoPath != null
+    val effectiveCanNavigateBack = uiState.canNavigateBack || isInlineVideoVisibleForNavigation
+    val effectiveNavigateUp = if (isInlineVideoVisibleForNavigation) {
+        onExitInlineVideo
+    } else {
+        onNavigateUp
+    }
+
     BackHandler(enabled = uiState.isEditMode) { onToggleEditMode() }
-    BackHandler(enabled = uiState.canNavigateBack && !uiState.isEditMode) { onNavigateUp() }
+    BackHandler(enabled = effectiveCanNavigateBack && !uiState.isEditMode) { effectiveNavigateUp() }
 
     Scaffold(
         modifier = modifier,
@@ -145,10 +197,12 @@ fun FileBrowserScreen(
             if (!uiState.oneHandedMode) {
                 FileBrowserAppBar(
                     currentPath = uiState.currentPath,
-                    canNavigateBack = uiState.canNavigateBack,
-                    onNavigateUp = onNavigateUp,
+                    canNavigateBack = effectiveCanNavigateBack,
+                    onNavigateUp = effectiveNavigateUp,
                     onSettingsClick = onSettingsClick,
                     onPlaylistClick = onPlaylistClick,
+                    browserMode = uiState.browserMode,
+                    onToggleBrowserMode = onToggleBrowserMode,
                     isEditMode = uiState.isEditMode,
                     selectedCount = uiState.selectedPaths.size,
                     allSelected = uiState.fileItems.isNotEmpty() && uiState.selectedPaths.size == uiState.fileItems.size,
@@ -230,10 +284,12 @@ fun FileBrowserScreen(
                 if (uiState.oneHandedMode) {
                     FileBrowserAppBar(
                         currentPath = uiState.currentPath,
-                        canNavigateBack = uiState.canNavigateBack,
-                        onNavigateUp = onNavigateUp,
+                        canNavigateBack = effectiveCanNavigateBack,
+                        onNavigateUp = effectiveNavigateUp,
                         onSettingsClick = onSettingsClick,
                         onPlaylistClick = onPlaylistClick,
+                        browserMode = uiState.browserMode,
+                        onToggleBrowserMode = onToggleBrowserMode,
                         isEditMode = uiState.isEditMode,
                         selectedCount = uiState.selectedPaths.size,
                         allSelected = uiState.fileItems.isNotEmpty() && uiState.selectedPaths.size == uiState.fileItems.size,
@@ -273,17 +329,44 @@ fun FileBrowserScreen(
                 .fillMaxSize()
         ) {
             Box(modifier = Modifier.fillMaxSize()) {
-                if (uiState.fileItems.isEmpty() && !uiState.isLoading) {
-                    Text(
-                        text = stringResource(R.string.empty_folder),
-                        style = MaterialTheme.typography.bodyLarge,
-                        modifier = Modifier.align(Alignment.Center)
+                val shouldShowInlineVideo = uiState.browserMode == MediaBrowserMode.VIDEO &&
+                    uiState.showInlineVideo &&
+                    uiState.activeVideoPath != null &&
+                    player != null
+
+                if (shouldShowInlineVideo) {
+                    InlineVideoPlayer(
+                        player = player,
+                        onSwipeNext = onInlineVideoSwipeNext,
+                        onSwipePrevious = onInlineVideoSwipePrevious,
+                        onToggleFullscreen = onToggleVideoFullscreen,
+                        attachPlayerDirectly = !isVideoFullscreen,
+                        onPlayerViewChanged = onInlinePlayerViewChanged,
+                        modifier = Modifier.fillMaxSize()
                     )
+                } else if (uiState.fileItems.isEmpty() && !uiState.isLoading) {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .combinedClickable(
+                                onClick = {},
+                                onLongClick = {
+                                    if (!uiState.isEditMode) onEmptyAreaLongClick()
+                                }
+                            ),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(
+                            text = stringResource(R.string.empty_folder),
+                            style = MaterialTheme.typography.bodyLarge
+                        )
+                    }
                 } else {
                     FileBrowserList(
                         uiState = uiState,
                         listState = listState,
                         activeSongPath = uiState.activeSongPath,
+                        activeVideoPath = uiState.activeVideoPath,
                         onItemClick = onItemClick,
                         onFolderIconClick = onFolderIconClick,
                         onDeleteClick = onDeleteClick,
@@ -291,7 +374,9 @@ fun FileBrowserScreen(
                         onCopyClick = onCopyClick,
                         onMoveClick = onMoveClick,
                         onAddToPlaylistClick = onAddToPlaylistClick,
+                        onAddToVideoPlaylistClick = onAddToVideoPlaylistClick,
                         onItemLongClick = onItemLongClick,
+                        onEmptyAreaLongClick = onEmptyAreaLongClick,
                         onToggleRepeatMode = onToggleRepeatMode
                     )
                 }
@@ -355,6 +440,102 @@ fun FileBrowserScreen(
                 onDismiss = onDismissDialog
             )
         }
+        DialogState.CreateFolder -> {
+            CreateFolderDialog(
+                onConfirm = onCreateFolderConfirmed,
+                onDismiss = onDismissDialog
+            )
+        }
+        is DialogState.AddToVideoPlaylist -> {
+            AddToVideoPlaylistDialog(
+                playlists = uiState.videoPlaylists,
+                onPlaylistSelected = { playlist -> onAddToVideoPlaylistConfirmed(playlist, dialogState.file) },
+                onCreateAndAdd = onCreateVideoPlaylistAndAdd,
+                onDismiss = onDismissDialog
+            )
+        }
+        is DialogState.AddToVideoPlaylistMultiple -> {
+            AddToVideoPlaylistDialog(
+                playlists = uiState.videoPlaylists,
+                onPlaylistSelected = { playlist -> onAddToVideoPlaylistMultipleConfirmed(playlist, dialogState.files) },
+                onCreateAndAdd = onCreateVideoPlaylistAndAdd,
+                onDismiss = onDismissDialog
+            )
+        }
         DialogState.None -> Unit
+    }
+}
+
+@Composable
+private fun InlineVideoPlayer(
+    player: Player,
+    onSwipeNext: () -> Unit,
+    onSwipePrevious: () -> Unit,
+    onToggleFullscreen: () -> Unit,
+    attachPlayerDirectly: Boolean,
+    onPlayerViewChanged: (PlayerView?) -> Unit,
+    modifier: Modifier = Modifier
+) {
+    var totalDragX by remember { mutableFloatStateOf(0f) }
+    var currentPlayerView by remember { mutableStateOf<PlayerView?>(null) }
+    val swipeThresholdPx = 96f
+
+    DisposableEffect(currentPlayerView) {
+        val playerView = currentPlayerView
+        if (playerView != null) {
+            onPlayerViewChanged(playerView)
+        }
+
+        onDispose {
+            if (playerView != null) {
+                onPlayerViewChanged(null)
+            }
+        }
+    }
+
+    Box(modifier = modifier) {
+        AndroidView(
+            factory = { context ->
+                PlayerView(context).apply {
+                    if (attachPlayerDirectly) {
+                        this.player = player
+                    }
+                    useController = false
+                    currentPlayerView = this
+                }
+            },
+            update = { playerView ->
+                if (attachPlayerDirectly) {
+                    playerView.player = player
+                }
+            },
+            modifier = Modifier.fillMaxSize()
+        )
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .pointerInput(onToggleFullscreen) {
+                    detectTapGestures(
+                        onDoubleTap = { onToggleFullscreen() }
+                    )
+                }
+                .pointerInput(onSwipeNext, onSwipePrevious) {
+                    detectDragGestures(
+                        onDragStart = { totalDragX = 0f },
+                        onDrag = { change, dragAmount ->
+                            change.consume()
+                            totalDragX += dragAmount.x
+                        },
+                        onDragEnd = {
+                            when {
+                                totalDragX <= -swipeThresholdPx -> onSwipeNext()
+                                totalDragX >= swipeThresholdPx -> onSwipePrevious()
+                            }
+                            totalDragX = 0f
+                        },
+                        onDragCancel = { totalDragX = 0f }
+                    )
+                }
+        )
     }
 }

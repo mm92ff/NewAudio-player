@@ -66,8 +66,18 @@ object SafTreeAccess {
         return DocumentsContract.buildDocumentUriUsingTree(tree.treeUri, childDocId)
     }
 
+    fun containsFsPath(tree: TreeInfo, fsPathRaw: String): Boolean {
+        val fsPath = normalizeFsPath(fsPathRaw)
+        val base = tree.baseFsPath.removeSuffix("/")
+        return fsPath == base || fsPath.startsWith("$base/")
+    }
+
     fun queryDisplayName(cr: ContentResolver, docUri: Uri): String? {
         return queryString(cr, docUri, DocumentsContract.Document.COLUMN_DISPLAY_NAME)
+    }
+
+    fun renameDocument(cr: ContentResolver, docUri: Uri, newName: String): Uri? {
+        return DocumentsContract.renameDocument(cr, docUri, newName)
     }
 
     fun queryMimeType(cr: ContentResolver, docUri: Uri): String? {

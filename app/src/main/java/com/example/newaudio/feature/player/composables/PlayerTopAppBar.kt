@@ -19,7 +19,8 @@ import com.example.newaudio.R
 @Composable
 fun PlayerTopAppBar(
     onBackClicked: () -> Unit,
-    onEqualizerClicked: () -> Unit
+    onEqualizerClicked: () -> Unit,
+    showEqualizer: Boolean = true
 ) {
     CenterAlignedTopAppBar(
         title = {
@@ -37,11 +38,13 @@ fun PlayerTopAppBar(
             }
         },
         actions = {
-            IconButton(onClick = onEqualizerClicked) {
-                Icon(
-                    imageVector = Icons.Filled.Settings,
-                    contentDescription = stringResource(R.string.equalizer)
-                )
+            if (showEqualizer) {
+                IconButton(onClick = onEqualizerClicked) {
+                    Icon(
+                        imageVector = Icons.Filled.Settings,
+                        contentDescription = stringResource(R.string.equalizer)
+                    )
+                }
             }
         },
         colors = TopAppBarDefaults.centerAlignedTopAppBarColors(containerColor = Color.Transparent)

@@ -160,6 +160,122 @@ class SettingsUseCasesTest {
     }
 
     // -------------------------------------------------------------------------
+    // SetResumeSessionOnModeSwitchUseCase
+    // -------------------------------------------------------------------------
+
+    @Test
+    fun `SetResumeSessionOnModeSwitchUseCase enables session resume on mode switch`() = runTest {
+        SetResumeSessionOnModeSwitchUseCase(repo)(true)
+        assertTrue(repo.userPreferences.first().resumeSessionOnModeSwitch)
+    }
+
+    @Test
+    fun `SetResumeSessionOnModeSwitchUseCase disables session resume on mode switch`() = runTest {
+        SetResumeSessionOnModeSwitchUseCase(repo)(true)
+        SetResumeSessionOnModeSwitchUseCase(repo)(false)
+        assertFalse(repo.userPreferences.first().resumeSessionOnModeSwitch)
+    }
+
+    // -------------------------------------------------------------------------
+    // SetShowVideoPreviewItemsUseCase
+    // -------------------------------------------------------------------------
+
+    @Test
+    fun `SetShowVideoPreviewItemsUseCase enables video preview items`() = runTest {
+        SetShowVideoPreviewItemsUseCase(repo)(true)
+        assertTrue(repo.userPreferences.first().showVideoPreviewItems)
+    }
+
+    @Test
+    fun `SetShowVideoPreviewItemsUseCase disables video preview items`() = runTest {
+        SetShowVideoPreviewItemsUseCase(repo)(true)
+        SetShowVideoPreviewItemsUseCase(repo)(false)
+        assertFalse(repo.userPreferences.first().showVideoPreviewItems)
+    }
+
+    // -------------------------------------------------------------------------
+    // SetVideoDisplayModeUseCase
+    // -------------------------------------------------------------------------
+
+    @Test
+    fun `default video display mode is list`() = runTest {
+        assertEquals(UserPreferences.VideoDisplayMode.LIST, repo.userPreferences.first().videoDisplayMode)
+    }
+
+    @Test
+    fun `SetVideoDisplayModeUseCase stores preview list mode`() = runTest {
+        SetVideoDisplayModeUseCase(repo)(UserPreferences.VideoDisplayMode.PREVIEW_LIST)
+        assertEquals(UserPreferences.VideoDisplayMode.PREVIEW_LIST, repo.userPreferences.first().videoDisplayMode)
+    }
+
+    @Test
+    fun `SetVideoDisplayModeUseCase stores square gallery mode`() = runTest {
+        SetVideoDisplayModeUseCase(repo)(UserPreferences.VideoDisplayMode.GALLERY_SQUARE)
+        assertEquals(UserPreferences.VideoDisplayMode.GALLERY_SQUARE, repo.userPreferences.first().videoDisplayMode)
+    }
+
+    @Test
+    fun `SetVideoDisplayModeUseCase stores adaptive gallery mode`() = runTest {
+        SetVideoDisplayModeUseCase(repo)(UserPreferences.VideoDisplayMode.GALLERY_ADAPTIVE)
+        assertEquals(UserPreferences.VideoDisplayMode.GALLERY_ADAPTIVE, repo.userPreferences.first().videoDisplayMode)
+    }
+
+    @Test
+    fun `SetVideoDisplayModeUseCase stores filled gallery mode`() = runTest {
+        SetVideoDisplayModeUseCase(repo)(UserPreferences.VideoDisplayMode.GALLERY_FILLED)
+        assertEquals(UserPreferences.VideoDisplayMode.GALLERY_FILLED, repo.userPreferences.first().videoDisplayMode)
+    }
+
+    // -------------------------------------------------------------------------
+    // SetVideoGalleryColumnsUseCase
+    // -------------------------------------------------------------------------
+
+    @Test
+    fun `default video gallery columns is three`() = runTest {
+        assertEquals(3, repo.userPreferences.first().videoGalleryColumns)
+    }
+
+    @Test
+    fun `SetVideoGalleryColumnsUseCase stores valid column counts`() = runTest {
+        SetVideoGalleryColumnsUseCase(repo)(2)
+        assertEquals(2, repo.userPreferences.first().videoGalleryColumns)
+
+        SetVideoGalleryColumnsUseCase(repo)(4)
+        assertEquals(4, repo.userPreferences.first().videoGalleryColumns)
+    }
+
+    @Test
+    fun `SetVideoGalleryColumnsUseCase clamps invalid column counts`() = runTest {
+        SetVideoGalleryColumnsUseCase(repo)(1)
+        assertEquals(2, repo.userPreferences.first().videoGalleryColumns)
+
+        SetVideoGalleryColumnsUseCase(repo)(9)
+        assertEquals(4, repo.userPreferences.first().videoGalleryColumns)
+    }
+
+    // -------------------------------------------------------------------------
+    // SetShowVideoNamesInGalleryUseCase
+    // -------------------------------------------------------------------------
+
+    @Test
+    fun `default show video names in gallery is false`() = runTest {
+        assertFalse(repo.userPreferences.first().showVideoNamesInGallery)
+    }
+
+    @Test
+    fun `SetShowVideoNamesInGalleryUseCase stores enabled state`() = runTest {
+        SetShowVideoNamesInGalleryUseCase(repo)(true)
+        assertTrue(repo.userPreferences.first().showVideoNamesInGallery)
+    }
+
+    @Test
+    fun `SetShowVideoNamesInGalleryUseCase stores disabled state`() = runTest {
+        SetShowVideoNamesInGalleryUseCase(repo)(true)
+        SetShowVideoNamesInGalleryUseCase(repo)(false)
+        assertFalse(repo.userPreferences.first().showVideoNamesInGallery)
+    }
+
+    // -------------------------------------------------------------------------
     // SetShowFolderSongCountUseCase
     // -------------------------------------------------------------------------
 

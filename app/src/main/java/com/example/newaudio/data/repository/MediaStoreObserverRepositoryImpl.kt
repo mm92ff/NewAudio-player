@@ -18,6 +18,14 @@ class MediaStoreObserverRepositoryImpl @Inject constructor(
 ) : IMediaStoreObserverRepository {
 
     override fun observeAudioChanges(): Flow<Unit> {
+        return observeChanges(MediaStore.Audio.Media.EXTERNAL_CONTENT_URI)
+    }
+
+    override fun observeVideoChanges(): Flow<Unit> {
+        return observeChanges(MediaStore.Video.Media.EXTERNAL_CONTENT_URI)
+    }
+
+    private fun observeChanges(uri: android.net.Uri): Flow<Unit> {
         return callbackFlow {
             val observer = object : ContentObserver(null) {
                 override fun onChange(selfChange: Boolean) {
@@ -25,7 +33,7 @@ class MediaStoreObserverRepositoryImpl @Inject constructor(
                 }
             }
             context.contentResolver.registerContentObserver(
-                MediaStore.Audio.Media.EXTERNAL_CONTENT_URI,
+                uri,
                 true,
                 observer
             )

@@ -17,6 +17,7 @@ import androidx.compose.ui.unit.dp
 import com.example.newaudio.R
 import com.example.newaudio.domain.model.FileItem
 import com.example.newaudio.domain.model.Playlist
+import com.example.newaudio.domain.model.VideoPlaylist
 
 @Composable
 fun RenameDialog(
@@ -108,6 +109,48 @@ fun DeleteMultipleConfirmationDialog(
 }
 
 @Composable
+fun CreateFolderDialog(
+    onConfirm: (String) -> Unit,
+    onDismiss: () -> Unit
+) {
+    var folderName by rememberSaveable { mutableStateOf("") }
+    val trimmedName = folderName.trim()
+    val invalidName = trimmedName.any { it in invalidFolderNameCharacters }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(stringResource(R.string.new_folder)) },
+        text = {
+            OutlinedTextField(
+                value = folderName,
+                onValueChange = { folderName = it },
+                label = { Text(stringResource(R.string.folder_name)) },
+                isError = invalidName,
+                supportingText = {
+                    if (invalidName) {
+                        Text(stringResource(R.string.folder_name_invalid))
+                    }
+                },
+                singleLine = true
+            )
+        },
+        confirmButton = {
+            TextButton(
+                onClick = { onConfirm(trimmedName) },
+                enabled = trimmedName.isNotBlank() && !invalidName
+            ) {
+                Text(stringResource(R.string.create_folder))
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text(stringResource(R.string.cancel))
+            }
+        }
+    )
+}
+
+@Composable
 fun AddToPlaylistDialog(
     playlists: List<Playlist>,
     onPlaylistSelected: (Playlist) -> Unit,
@@ -177,3 +220,76 @@ fun AddToPlaylistDialog(
         }
     )
 }
+
+@Composable
+fun AddToVideoPlaylistDialog(
+    playlists: List<VideoPlaylist>,
+    onPlaylistSelected: (VideoPlaylist) -> Unit,
+    onCreateAndAdd: (String) -> Unit,
+    onDismiss: () -> Unit
+) {
+    var showCreateField by rememberSaveable { mutableStateOf(false) }
+    var newPlaylistName by rememberSaveable { mutableStateOf("") }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(stringResource(R.string.add_to_video_playlist)) },
+        text = {
+            LazyColumn {
+                item {
+                    if (showCreateField) {
+                        OutlinedTextField(
+                            value = newPlaylistName,
+                            onValueChange = { newPlaylistName = it },
+                            label = { Text(stringResource(R.string.playlist_name)) },
+                            singleLine = true,
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(bottom = 8.dp)
+                        )
+                    } else {
+                        ListItem(
+                            headlineContent = { Text(stringResource(R.string.playlist_create_new)) },
+                            leadingContent = { Icon(Icons.Default.Add, null) },
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clickable { showCreateField = true }
+                        )
+                        HorizontalDivider()
+                    }
+                }
+                if (playlists.isNotEmpty()) {
+                    items(playlists) { playlist ->
+                        ListItem(
+                            headlineContent = { Text(playlist.name) },
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clickable { onPlaylistSelected(playlist) }
+                        )
+                    }
+                }
+            }
+        },
+        confirmButton = {
+            if (showCreateField) {
+                TextButton(
+                    onClick = {
+                        if (newPlaylistName.isNotBlank()) {
+                            onCreateAndAdd(newPlaylistName)
+                        }
+                    },
+                    enabled = newPlaylistName.isNotBlank()
+                ) {
+                    Text(stringResource(R.string.save))
+                }
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text(stringResource(R.string.cancel))
+            }
+        }
+    )
+}
+
+private val invalidFolderNameCharacters = setOf('/', '\\', ':', '*', '?', '"', '<', '>', '|')

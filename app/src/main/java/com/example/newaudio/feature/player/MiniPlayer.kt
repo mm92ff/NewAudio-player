@@ -1,6 +1,9 @@
 package com.example.newaudio.feature.player
 
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
+import androidx.compose.foundation.basicMarquee
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -32,6 +35,7 @@ import com.example.newaudio.R
 import com.example.newaudio.ui.theme.Dimens
 import kotlinx.coroutines.flow.Flow
 
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 private fun MiniPlayerProgressBar(
     currentPosition: Long,
@@ -89,12 +93,15 @@ private fun MiniPlayerProgressBarHost(
     )
 }
 
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 private fun PlayerControls(
     title: String,
     artist: String,
     isPlaying: Boolean,
     enabled: Boolean, // CHANGE: New parameter
+    useMarquee: Boolean,
+    onTitleClicked: () -> Unit,
     onPlayPauseClicked: () -> Unit,
     onSkipNextClicked: () -> Unit
 ) {
@@ -105,18 +112,28 @@ private fun PlayerControls(
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.SpaceBetween
     ) {
-        Column(modifier = Modifier.weight(1f)) {
+        Column(
+            modifier = Modifier
+                .weight(1f)
+                .clickable(onClick = onTitleClicked)
+        ) {
             Text(
                 text = title,
                 style = MaterialTheme.typography.bodyLarge,
-                maxLines = 1
+                maxLines = 1,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .then(if (useMarquee) Modifier.basicMarquee() else Modifier)
             )
             if (artist.isNotEmpty()) {
                 Text(
                     text = artist,
                     style = MaterialTheme.typography.bodySmall,
                     maxLines = 1,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .then(if (useMarquee) Modifier.basicMarquee() else Modifier)
                 )
             }
         }
@@ -151,10 +168,12 @@ fun MiniPlayer(
     isPlaying: Boolean,
     totalDuration: Long,
     progressBarHeight: Float,
+    useMarquee: Boolean = false,
     currentPositionFlow: Flow<Long>,
     onPlayPauseClicked: () -> Unit,
     onSkipNextClicked: () -> Unit,
     onSeek: (Float) -> Unit, // position in ms
+    onTitleClicked: () -> Unit = {},
     isControlsEnabled: Boolean = true, // CHANGE: New parameter, default true
     modifier: Modifier = Modifier
 ) {
@@ -178,6 +197,8 @@ fun MiniPlayer(
                 artist = artist,
                 isPlaying = isPlaying,
                 enabled = isControlsEnabled, // Pass value through
+                useMarquee = useMarquee,
+                onTitleClicked = onTitleClicked,
                 onPlayPauseClicked = onPlayPauseClicked,
                 onSkipNextClicked = onSkipNextClicked
             )

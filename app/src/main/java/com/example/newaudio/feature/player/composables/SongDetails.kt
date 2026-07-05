@@ -3,6 +3,7 @@ package com.example.newaudio.feature.player.composables
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.basicMarquee
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -23,7 +24,7 @@ fun SongDetails(
     modifier: Modifier = Modifier
 ) {
     Column(
-        modifier = modifier,
+        modifier = modifier.fillMaxWidth(),
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
         Text(
@@ -32,6 +33,7 @@ fun SongDetails(
             textAlign = TextAlign.Center,
             maxLines = 1,
             modifier = (if (useMarquee) Modifier.basicMarquee() else Modifier)
+                .fillMaxWidth()
                 .padding(vertical = Dimens.PaddingMedium)
         )
         Text(
@@ -40,7 +42,9 @@ fun SongDetails(
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             textAlign = TextAlign.Center,
             maxLines = 1,
-            modifier = Modifier.padding(vertical = Dimens.PaddingMedium)
+            modifier = (if (useMarquee) Modifier.basicMarquee() else Modifier)
+                .fillMaxWidth()
+                .padding(vertical = Dimens.PaddingMedium)
         )
     }
 }

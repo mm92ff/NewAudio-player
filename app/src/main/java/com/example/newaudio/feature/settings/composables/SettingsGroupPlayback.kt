@@ -78,3 +78,35 @@ fun BluetoothAutoplaySetting(
         }
     }
 }
+
+@Composable
+fun ResumeSessionOnModeSwitchSetting(
+    isEnabled: Boolean,
+    onCheckedChange: (Boolean) -> Unit
+) {
+    SettingsCard(modifier = Modifier.fillMaxWidth()) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(Dimens.PaddingMedium),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.SpaceBetween
+        ) {
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = stringResource(R.string.resume_session_on_mode_switch),
+                    style = MaterialTheme.typography.bodyLarge
+                )
+                Text(
+                    text = stringResource(R.string.resume_session_on_mode_switch_desc),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+            Switch(
+                checked = isEnabled,
+                onCheckedChange = onCheckedChange
+            )
+        }
+    }
+}

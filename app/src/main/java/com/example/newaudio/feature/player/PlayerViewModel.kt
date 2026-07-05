@@ -8,10 +8,12 @@ import com.example.newaudio.di.IoDispatcher
 import com.example.newaudio.domain.model.LogLevel
 import com.example.newaudio.domain.model.Song
 import com.example.newaudio.domain.model.UserPreferences
+import com.example.newaudio.domain.model.Video
 import com.example.newaudio.domain.repository.IEqualizerRepository
 import com.example.newaudio.domain.repository.IErrorRepository
 import com.example.newaudio.domain.repository.IMediaRepository
 import com.example.newaudio.domain.repository.ISettingsRepository
+import com.example.newaudio.domain.repository.IVideoMarkerRepository
 import com.example.newaudio.domain.usecase.media.GetSongMetadataUseCase
 import com.example.newaudio.domain.usecase.player.InitializePlaybackSessionUseCase
 import com.example.newaudio.domain.usecase.player.SeekTrackUseCase
@@ -23,8 +25,10 @@ import com.example.newaudio.util.Constants
 import com.example.newaudio.util.UiText
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.collections.immutable.ImmutableMap
+import kotlinx.collections.immutable.toImmutableList
 import kotlinx.collections.immutable.toImmutableMap
 import kotlinx.coroutines.CoroutineDispatcher
+import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -32,6 +36,9 @@ import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.flatMapLatest
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
@@ -40,6 +47,7 @@ import timber.log.Timber
 import javax.inject.Inject
 
 @HiltViewModel
+@OptIn(ExperimentalCoroutinesApi::class)
 class PlayerViewModel @Inject constructor(
     private val mediaRepository: IMediaRepository,
     private val initializePlaybackSessionUseCase: InitializePlaybackSessionUseCase,
@@ -51,6 +59,7 @@ class PlayerViewModel @Inject constructor(
     private val getSongMetadataUseCase: GetSongMetadataUseCase,
     equalizerRepository: IEqualizerRepository,
     private val settingsRepository: ISettingsRepository,
+    private val videoMarkerRepository: IVideoMarkerRepository,
     private val errorRepository: IErrorRepository,
     @param:IoDispatcher private val ioDispatcher: CoroutineDispatcher
 ) : ViewModel() {
@@ -65,16 +74,23 @@ class PlayerViewModel @Inject constructor(
     private val _errorEvents = Channel<UiText>()
     val errorEvents: Flow<UiText> = _errorEvents.receiveAsFlow()
 
+    private val videoMarkers = mediaRepository.getPlaybackState()
+        .map { playbackState -> playbackState.currentVideo?.path }
+        .distinctUntilChanged()
+        .flatMapLatest { videoPath -> videoMarkerRepository.observeMarkersForVideo(videoPath) }
+
     val uiState: StateFlow<PlayerUiState> = combine(
         mediaRepository.getPlaybackState(),
         equalizerRepository.getEqualizerState(),
         settingsRepository.userPreferences,
+        videoMarkers,
         _songMetadata.asStateFlow()
-    ) { playbackState, equalizerState, userSettings, songMetadata ->
+    ) { playbackState, equalizerState, userSettings, markers, songMetadata ->
         PlayerUiState(
             isLoading = playbackState.isRestoring,
             isPlaying = playbackState.isPlaying,
             currentSong = playbackState.currentSong,
+            currentVideo = playbackState.currentVideo,
             currentPosition = playbackState.currentPosition,
             totalDuration = playbackState.totalDuration,
             isShuffleEnabled = playbackState.isShuffleEnabled,
@@ -83,7 +99,10 @@ class PlayerViewModel @Inject constructor(
             miniPlayerProgressBarHeight = userSettings.miniPlayerProgressBarHeight,
             fullScreenPlayerProgressBarHeight = userSettings.fullScreenPlayerProgressBarHeight,
             useMarquee = userSettings.useMarquee,
-            songMetadata = songMetadata
+            videoMarkersEnabled = userSettings.videoMarkersEnabled,
+            videoMarkers = markers.toImmutableList(),
+            songMetadata = songMetadata,
+            player = playbackState.player
         )
     }.stateIn(
         scope = viewModelScope,
@@ -141,9 +160,27 @@ class PlayerViewModel @Inject constructor(
         mediaRepository.playPlaylist(songs, startIndex)
     }
 
+    fun onPlayVideoPlaylist(videos: List<Video>, startIndex: Int) = safeLaunch {
+        errorRepository.log(LogLevel.INFO, TAG, "Playing video playlist with ${videos.size} videos, starting at index $startIndex")
+        mediaRepository.playVideoPlaylist(videos, startIndex)
+    }
+
     fun onPlayPauseToggle() = safeLaunch {
         errorRepository.log(LogLevel.INFO, TAG, "Play/Pause toggled")
         togglePlaybackUseCase()
+    }
+
+    fun onAddVideoMarker(positionMs: Long) = safeLaunch {
+        val video = uiState.value.currentVideo ?: return@safeLaunch
+        videoMarkerRepository.addMarker(video, positionMs)
+    }
+
+    fun onMoveVideoMarker(markerId: Long, positionMs: Long) = safeLaunch {
+        videoMarkerRepository.moveMarker(markerId, positionMs)
+    }
+
+    fun onDeleteVideoMarker(markerId: Long) = safeLaunch {
+        videoMarkerRepository.deleteMarker(markerId)
     }
 
     fun onSeek(position: Float) = safeLaunch {

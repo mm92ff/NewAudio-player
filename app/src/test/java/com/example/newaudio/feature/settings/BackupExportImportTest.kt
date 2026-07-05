@@ -1,8 +1,8 @@
 package com.example.newaudio.feature.settings
 
 import com.example.newaudio.domain.model.UserPreferences
-import com.example.newaudio.domain.usecase.file.GetRootPathUseCase
 import com.example.newaudio.domain.usecase.file.SetMusicFolderUseCase
+import com.example.newaudio.domain.usecase.file.SetVideoFolderUseCase
 import com.example.newaudio.domain.usecase.settings.GetUserSettingsUseCase
 import com.example.newaudio.domain.usecase.settings.ResetDatabaseUseCase
 import com.example.newaudio.domain.usecase.settings.RestoreUserPreferencesUseCase
@@ -14,6 +14,12 @@ import com.example.newaudio.domain.usecase.settings.SetMiniPlayerProgressBarHeig
 import com.example.newaudio.domain.usecase.settings.SetOneHandedModeUseCase
 import com.example.newaudio.domain.usecase.settings.SetPlayOnFolderClickUseCase
 import com.example.newaudio.domain.usecase.settings.SetPrimaryColorUseCase
+import com.example.newaudio.domain.usecase.settings.SetResumeSessionOnModeSwitchUseCase
+import com.example.newaudio.domain.usecase.settings.SetShowVideoNamesInGalleryUseCase
+import com.example.newaudio.domain.usecase.settings.SetShowVideoPreviewItemsUseCase
+import com.example.newaudio.domain.usecase.settings.SetVideoDisplayModeUseCase
+import com.example.newaudio.domain.usecase.settings.SetVideoGalleryColumnsUseCase
+import com.example.newaudio.domain.usecase.settings.SetVideoMarkersEnabledUseCase
 import com.example.newaudio.domain.usecase.settings.SetShowFolderSongCountUseCase
 import com.example.newaudio.domain.usecase.settings.SetShowHiddenFilesUseCase
 import com.example.newaudio.domain.usecase.settings.SetThemeUseCase
@@ -61,6 +67,7 @@ class BackupExportImportTest {
         setThemeUseCase = SetThemeUseCase(settingsRepo),
         setPrimaryColorUseCase = SetPrimaryColorUseCase(settingsRepo),
         setMusicFolderUseCase = SetMusicFolderUseCase(settingsRepo, scannerRepo),
+        setVideoFolderUseCase = SetVideoFolderUseCase(settingsRepo, scannerRepo),
         setMiniPlayerProgressBarHeightUseCase = SetMiniPlayerProgressBarHeightUseCase(settingsRepo),
         setFullScreenPlayerProgressBarHeightUseCase = SetFullScreenPlayerProgressBarHeightUseCase(settingsRepo),
         setAutoPlayOnBluetoothUseCase = SetAutoPlayOnBluetoothUseCase(settingsRepo),
@@ -68,6 +75,12 @@ class BackupExportImportTest {
         setUseMarqueeUseCase = SetUseMarqueeUseCase(settingsRepo),
         setShowHiddenFilesUseCase = SetShowHiddenFilesUseCase(settingsRepo),
         setPlayOnFolderClickUseCase = SetPlayOnFolderClickUseCase(settingsRepo),
+        setResumeSessionOnModeSwitchUseCase = SetResumeSessionOnModeSwitchUseCase(settingsRepo),
+        setShowVideoPreviewItemsUseCase = SetShowVideoPreviewItemsUseCase(settingsRepo),
+        setShowVideoNamesInGalleryUseCase = SetShowVideoNamesInGalleryUseCase(settingsRepo),
+        setVideoMarkersEnabledUseCase = SetVideoMarkersEnabledUseCase(settingsRepo),
+        setVideoDisplayModeUseCase = SetVideoDisplayModeUseCase(settingsRepo),
+        setVideoGalleryColumnsUseCase = SetVideoGalleryColumnsUseCase(settingsRepo),
         setShowFolderSongCountUseCase = SetShowFolderSongCountUseCase(settingsRepo),
         setBackgroundTintFractionUseCase = SetBackgroundTintFractionUseCase(settingsRepo),
         setBackgroundGradientEnabledUseCase = SetBackgroundGradientEnabledUseCase(settingsRepo),

@@ -8,6 +8,7 @@ import com.example.newaudio.R
 import com.example.newaudio.di.IoDispatcher
 import com.example.newaudio.domain.model.Song
 import com.example.newaudio.domain.model.UserPreferences
+import com.example.newaudio.domain.model.Video
 import com.example.newaudio.domain.repository.IMediaRepository
 import com.example.newaudio.domain.repository.ISettingsRepository
 import dagger.hilt.android.qualifiers.ApplicationContext
@@ -21,6 +22,8 @@ import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import timber.log.Timber
 import javax.inject.Inject
+import java.io.File
+import java.util.Locale
 import kotlin.math.abs
 
 class PlayerListenerDelegate @Inject constructor(
@@ -36,6 +39,12 @@ class PlayerListenerDelegate @Inject constructor(
         private const val TAG = "PlayerListenerDelegate"
         private const val POSITION_UPDATE_INTERVAL_MS = 1000L
         private const val AUTO_SAVE_INTERVAL_MS = 5000L
+        private const val MEDIA_TYPE_KEY = "com.example.newaudio.MEDIA_TYPE"
+        private const val MEDIA_TYPE_VIDEO = "video"
+
+        private val VIDEO_EXTENSIONS = setOf(
+            "mp4", "m4v", "mkv", "webm", "avi", "mov", "wmv", "3gp", "3gpp"
+        )
     }
 
     private var positionUpdateJob: Job? = null
@@ -48,11 +57,25 @@ class PlayerListenerDelegate @Inject constructor(
     private var lastSavedPosition = 0L
 
     var currentPlaylist: List<Song> = emptyList()
+    var currentVideoPlaylist: List<Video> = emptyList()
     var currentFolderPath: String? = null
 
     override fun onMediaItemTransition(mediaItem: MediaItem?, reason: Int) {
-        val currentSong = currentPlaylist.find { it.path == mediaItem?.mediaId } ?: mediaItem?.toSong()
-        playbackState.update { it.copy(currentSong = currentSong, playerError = null) }
+        val currentVideo = currentVideoPlaylist.find { it.path == mediaItem?.mediaId }
+            ?: mediaItem?.takeIf { it.isVideoItem() }?.toVideo()
+        val currentSong = if (currentVideo == null) {
+            currentPlaylist.find { it.path == mediaItem?.mediaId }
+                ?: mediaItem?.takeUnless { it.isVideoItem() }?.toSong()
+        } else {
+            null
+        }
+        playbackState.update {
+            it.copy(
+                currentSong = currentSong,
+                currentVideo = currentVideo,
+                playerError = null
+            )
+        }
         saveCurrentState()
     }
 
@@ -163,9 +186,29 @@ class PlayerListenerDelegate @Inject constructor(
         path = this.mediaId,
         // ✅ NEW: Try to get the URI from the player configuration, fall back to ID
         contentUri = this.localConfiguration?.uri?.toString() ?: this.mediaId,
-        title = this.mediaMetadata.title?.toString() ?: "Unknown Title",
+        title = this.mediaMetadata.title?.toString()?.takeIf { it.isNotBlank() }
+            ?: File(this.mediaId).nameWithoutExtension.ifBlank { "Unknown Title" },
         artist = this.mediaMetadata.artist?.toString() ?: "Unknown Artist",
         duration = 0,
         albumArtPath = null
     )
+
+    private fun MediaItem.toVideo(): Video = Video(
+        path = this.mediaId,
+        contentUri = this.localConfiguration?.uri?.toString() ?: this.mediaId,
+        title = this.mediaMetadata.title?.toString()?.takeIf { it.isNotBlank() }
+            ?: File(this.mediaId).nameWithoutExtension.ifBlank { "Unknown Video" },
+        duration = 0L,
+        thumbnailUri = null
+    )
+
+    private fun MediaItem.isVideoItem(): Boolean {
+        if (mediaMetadata.extras?.getString(MEDIA_TYPE_KEY) == MEDIA_TYPE_VIDEO) {
+            return true
+        }
+
+        val extension = mediaId.substringAfterLast('.', missingDelimiterValue = "")
+            .lowercase(Locale.ROOT)
+        return extension in VIDEO_EXTENSIONS
+    }
 }

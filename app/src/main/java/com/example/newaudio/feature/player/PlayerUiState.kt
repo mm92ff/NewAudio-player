@@ -1,9 +1,13 @@
 package com.example.newaudio.feature.player
 
+import androidx.media3.common.Player
 import androidx.compose.runtime.Stable
 import com.example.newaudio.domain.model.Song
 import com.example.newaudio.domain.model.UserPreferences
+import com.example.newaudio.domain.model.Video
+import com.example.newaudio.domain.model.VideoMarker
 import com.example.newaudio.domain.repository.IEqualizerRepository
+import kotlinx.collections.immutable.ImmutableList
 import kotlinx.collections.immutable.ImmutableMap
 import kotlinx.collections.immutable.persistentListOf
 
@@ -15,6 +19,7 @@ data class PlayerUiState(
     val isLoading: Boolean = false,
     val isPlaying: Boolean = false,
     val currentSong: Song? = null,
+    val currentVideo: Video? = null,
     val currentPosition: Long = 0L,
     val totalDuration: Long = 0L,
     val isShuffleEnabled: Boolean = false,
@@ -23,5 +28,8 @@ data class PlayerUiState(
     val miniPlayerProgressBarHeight: Float = UserPreferences.default().miniPlayerProgressBarHeight,
     val fullScreenPlayerProgressBarHeight: Float = UserPreferences.default().fullScreenPlayerProgressBarHeight,
     val useMarquee: Boolean = false,
-    val songMetadata: ImmutableMap<String, String?>? = null
+    val videoMarkersEnabled: Boolean = false,
+    val videoMarkers: ImmutableList<VideoMarker> = persistentListOf(),
+    val songMetadata: ImmutableMap<String, String?>? = null,
+    val player: Player? = null
 )

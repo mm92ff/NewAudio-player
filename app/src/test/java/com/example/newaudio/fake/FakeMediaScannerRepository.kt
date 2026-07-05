@@ -12,6 +12,10 @@ class FakeMediaScannerRepository : IMediaScannerRepository {
 
     var scanDirectoryCalled: String? = null
     var scanSingleFileCalled: String? = null
+    var scanVideoDirectoryCalled: String? = null
+    var scanSingleVideoFileCalled: String? = null
+    val scanSingleFileCalls = mutableListOf<String>()
+    val scanSingleVideoFileCalls = mutableListOf<String>()
 
     override suspend fun scanDirectory(rootPath: String) {
         scanDirectoryCalled = rootPath
@@ -19,5 +23,15 @@ class FakeMediaScannerRepository : IMediaScannerRepository {
 
     override suspend fun scanSingleFile(path: String) {
         scanSingleFileCalled = path
+        scanSingleFileCalls.add(path)
+    }
+
+    override suspend fun scanVideoDirectory(rootPath: String) {
+        scanVideoDirectoryCalled = rootPath
+    }
+
+    override suspend fun scanSingleVideoFile(path: String) {
+        scanSingleVideoFileCalled = path
+        scanSingleVideoFileCalls.add(path)
     }
 }

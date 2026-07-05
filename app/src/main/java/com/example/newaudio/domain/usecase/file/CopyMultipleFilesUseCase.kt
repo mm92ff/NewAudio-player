@@ -1,7 +1,6 @@
 package com.example.newaudio.domain.usecase.file
 
 import android.app.Application
-import android.net.Uri
 import android.webkit.MimeTypeMap
 import androidx.documentfile.provider.DocumentFile
 import com.example.newaudio.domain.model.FileItem
@@ -26,11 +25,13 @@ class CopyMultipleFilesUseCase @Inject constructor(
 
         val cr = application.contentResolver
         val settings = runCatching { getUserSettingsUseCase().first() }.getOrNull()
-        val tree = settings?.musicFolderPath?.let { SafTreeAccess.parseTree(it) }
+        val musicTree = settings?.musicFolderPath?.let { SafTreeAccess.parseTree(it) }
+        val videoTree = settings?.videoFolderPath?.let { SafTreeAccess.parseTree(it) }
 
         for (item in items) {
             val sourceFile = File(item.path)
             val destFile = File(targetPath, sourceFile.name)
+            val tree = treeForItem(item, musicTree, videoTree)
 
             // Prevents overwriting if the destination already exists (simple check)
             if (destFile.exists()) {
@@ -44,14 +45,15 @@ class CopyMultipleFilesUseCase @Inject constructor(
 
             // 2. Scan (insert into DB) so it's immediately visible
             if (copySuccess) {
-                if (item is FileItem.AudioFile) {
-                    try {
-                        mediaScannerRepository.scanSingleFile(destFile.absolutePath)
-                    } catch (e: Exception) {
-                        Timber.e(e, "Failed to scan copied file: ${destFile.absolutePath}")
+                try {
+                    when (item) {
+                        is FileItem.AudioFile -> mediaScannerRepository.scanSingleFile(destFile.absolutePath)
+                        is FileItem.VideoFile -> mediaScannerRepository.scanSingleVideoFile(destFile.absolutePath)
+                        is FileItem.Folder -> scanFolderRecursively(destFile)
+                        is FileItem.OtherFile -> Unit
                     }
-                } else if (item is FileItem.Folder) {
-                    scanFolderRecursively(destFile)
+                } catch (e: Exception) {
+                    Timber.e(e, "Failed to scan copied item: ${destFile.absolutePath}")
                 }
             } else {
                 allSuccess = false
@@ -63,9 +65,17 @@ class CopyMultipleFilesUseCase @Inject constructor(
 
     private suspend fun scanFolderRecursively(folder: File) {
         folder.walk().forEach { file ->
-            if (file.isFile && isAudioFile(file.name)) {
+            if (!file.isFile) return@forEach
+
+            val scannerCall: (suspend (String) -> Unit)? = when {
+                isAudioFile(file.name) -> mediaScannerRepository::scanSingleFile
+                isVideoFile(file.name) -> mediaScannerRepository::scanSingleVideoFile
+                else -> null
+            }
+
+            if (scannerCall != null) {
                 try {
-                    mediaScannerRepository.scanSingleFile(file.absolutePath)
+                    scannerCall(file.absolutePath)
                 } catch (e: Exception) {
                     Timber.e("Scan failed for ${file.name}")
                 }
@@ -78,6 +88,28 @@ class CopyMultipleFilesUseCase @Inject constructor(
         return lower.endsWith(".mp3") || lower.endsWith(".m4a") || lower.endsWith(".flac") || lower.endsWith(".wav") || lower.endsWith(".ogg")
     }
 
+    private fun isVideoFile(filename: String): Boolean {
+        val lower = filename.lowercase()
+        return lower.endsWith(".mp4") || lower.endsWith(".m4v") || lower.endsWith(".mkv") ||
+            lower.endsWith(".webm") || lower.endsWith(".avi") || lower.endsWith(".mov") ||
+            lower.endsWith(".3gp")
+    }
+
+    private fun treeForItem(
+        item: FileItem,
+        musicTree: SafTreeAccess.TreeInfo?,
+        videoTree: SafTreeAccess.TreeInfo?
+    ): SafTreeAccess.TreeInfo? {
+        return when (item) {
+            is FileItem.AudioFile -> musicTree
+            is FileItem.VideoFile -> videoTree
+            is FileItem.Folder -> listOf(videoTree, musicTree)
+                .filterNotNull()
+                .firstOrNull { tree -> SafTreeAccess.documentUriForFsPath(tree, item.path) != null }
+            is FileItem.OtherFile -> musicTree ?: videoTree
+        }
+    }
+
     private fun copyPhysical(
         source: File,
         dest: File,
@@ -86,7 +118,7 @@ class CopyMultipleFilesUseCase @Inject constructor(
     ): Boolean {
         // A. SAF (Storage Access Framework) logic
         // Required for Android 10+ and SD cards
-        if (tree != null && SafTreeAccess.hasPersistedWritePermission(cr, tree.treeUri)) {
+        if (!source.isDirectory && tree != null && SafTreeAccess.hasPersistedWritePermission(cr, tree.treeUri)) {
             try {
                 // 1. Get URI of the destination FOLDER
                 val targetDirUri = SafTreeAccess.documentUriForFsPath(tree, dest.parent ?: "")

@@ -181,10 +181,20 @@ interface SongDao {
         """
         UPDATE songs
         SET path = :newPath,
+            contentUri = :newContentUri,
             parentPath = :newParentPath,
             filename = :newFilename
         WHERE path = :oldPath
         """
     )
-    suspend fun updatePath(oldPath: String, newPath: String, newParentPath: String, newFilename: String)
+    suspend fun updatePath(
+        oldPath: String,
+        newPath: String,
+        newContentUri: String,
+        newParentPath: String,
+        newFilename: String
+    )
+
+    @Query("UPDATE songs SET contentUri = :contentUri WHERE path = :path")
+    suspend fun updateContentUri(path: String, contentUri: String)
 }

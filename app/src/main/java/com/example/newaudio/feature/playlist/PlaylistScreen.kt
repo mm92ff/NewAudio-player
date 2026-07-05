@@ -19,36 +19,69 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import coil.ImageLoader
+import coil.decode.VideoFrameDecoder
 import com.example.newaudio.R
 import com.example.newaudio.domain.model.Playlist
 import com.example.newaudio.domain.model.Song
+import com.example.newaudio.domain.model.Video
+import com.example.newaudio.domain.model.VideoPlaylist
 import com.example.newaudio.feature.player.PlayerViewModel
 import com.example.newaudio.feature.playlist.components.PlaylistContent
 import com.example.newaudio.feature.playlist.components.PlaylistInputDialog
+import com.example.newaudio.feature.playlist.components.VideoPlaylistContent
 import com.example.newaudio.ui.theme.Dimens
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.map
+
+private enum class PlaylistMediaTab {
+    AUDIO,
+    VIDEO
+}
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun PlaylistScreen(
     viewModel: PlaylistViewModel,
+    videoViewModel: VideoPlaylistViewModel = hiltViewModel(),
     playerViewModel: PlayerViewModel = hiltViewModel(),
     onBackClick: () -> Unit,
-    onPlaySongs: (List<Song>, Int) -> Unit
+    onPlaySongs: (List<Song>, Int) -> Unit,
+    onPlayVideos: (List<Video>, Int) -> Unit
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
+    val videoUiState by videoViewModel.uiState.collectAsStateWithLifecycle()
     val context = LocalContext.current
     val listState = rememberLazyListState()
+    val videoListState = rememberLazyListState()
+    var selectedTab by remember { mutableStateOf(PlaylistMediaTab.AUDIO) }
+    val isEditMode = when (selectedTab) {
+        PlaylistMediaTab.AUDIO -> uiState.isEditMode
+        PlaylistMediaTab.VIDEO -> videoUiState.isEditMode
+    }
 
     val activeSongPath by remember(playerViewModel) {
         playerViewModel.uiState
             .map { it.currentSong?.path }
             .distinctUntilChanged()
     }.collectAsStateWithLifecycle(initialValue = null)
+    val activeVideoPath by remember(playerViewModel) {
+        playerViewModel.uiState
+            .map { it.currentVideo?.path }
+            .distinctUntilChanged()
+    }.collectAsStateWithLifecycle(initialValue = null)
+
+    val videoThumbnailImageLoader = remember(context) {
+        ImageLoader.Builder(context)
+            .components {
+                add(VideoFrameDecoder.Factory())
+            }
+            .build()
+    }
 
     var showCreateDialog by remember { mutableStateOf(false) }
     var playlistToRename by remember { mutableStateOf<Playlist?>(null) }
+    var videoPlaylistToRename by remember { mutableStateOf<VideoPlaylist?>(null) }
     val snackbarHostState = remember { SnackbarHostState() }
 
     // Auto-scroll logic for reordering
@@ -97,6 +130,18 @@ fun PlaylistScreen(
     }
 
     LaunchedEffect(Unit) {
+        videoViewModel.events.collect { event ->
+            when (event) {
+                is VideoPlaylistEvent.PlayVideoPlaylist -> onPlayVideos(event.videos, 0)
+                is VideoPlaylistEvent.PlayVideoInPlaylist -> {
+                    val startIndex = event.allVideos.indexOf(event.video).coerceAtLeast(0)
+                    onPlayVideos(event.allVideos, startIndex)
+                }
+            }
+        }
+    }
+
+    LaunchedEffect(Unit) {
         viewModel.sideEffects.collect { effect ->
             when (effect) {
                 is PlaylistSideEffect.ShowSnackbar -> {
@@ -106,21 +151,42 @@ fun PlaylistScreen(
         }
     }
 
-    BackHandler(enabled = uiState.isEditMode) {
-        viewModel.toggleEditMode()
+    LaunchedEffect(Unit) {
+        videoViewModel.sideEffects.collect { effect ->
+            when (effect) {
+                is PlaylistSideEffect.ShowSnackbar -> {
+                    snackbarHostState.showSnackbar(effect.message.asString(context))
+                }
+            }
+        }
+    }
+
+    BackHandler(enabled = isEditMode) {
+        when (selectedTab) {
+            PlaylistMediaTab.AUDIO -> viewModel.toggleEditMode()
+            PlaylistMediaTab.VIDEO -> videoViewModel.toggleEditMode()
+        }
     }
 
     Scaffold(
         snackbarHost = { SnackbarHost(hostState = snackbarHostState) },
         topBar = {
-            if (uiState.isEditMode) {
+            if (isEditMode) {
                 TopAppBar(
                     title = {
-                        val totalSelected = uiState.selectedSongs.size + uiState.selectedPlaylistIds.size
+                        val totalSelected = when (selectedTab) {
+                            PlaylistMediaTab.AUDIO -> uiState.selectedSongs.size + uiState.selectedPlaylistIds.size
+                            PlaylistMediaTab.VIDEO -> videoUiState.selectedVideos.size + videoUiState.selectedPlaylistIds.size
+                        }
                         Text(stringResource(R.string.selected_count, totalSelected))
                     },
                     navigationIcon = {
-                        IconButton(onClick = { viewModel.toggleEditMode() }) {
+                        IconButton(onClick = {
+                            when (selectedTab) {
+                                PlaylistMediaTab.AUDIO -> viewModel.toggleEditMode()
+                                PlaylistMediaTab.VIDEO -> videoViewModel.toggleEditMode()
+                            }
+                        }) {
                             Icon(Icons.Default.Close, stringResource(R.string.cancel))
                         }
                     },
@@ -137,7 +203,12 @@ fun PlaylistScreen(
                         }
                     },
                     actions = {
-                        IconButton(onClick = { viewModel.toggleEditMode() }) {
+                        IconButton(onClick = {
+                            when (selectedTab) {
+                                PlaylistMediaTab.AUDIO -> viewModel.toggleEditMode()
+                                PlaylistMediaTab.VIDEO -> videoViewModel.toggleEditMode()
+                            }
+                        }) {
                             Icon(Icons.Default.Checklist, stringResource(R.string.edit_mode))
                         }
                     },
@@ -147,7 +218,10 @@ fun PlaylistScreen(
         },
         bottomBar = {
             AnimatedVisibility(
-                visible = uiState.isEditMode && (uiState.selectedSongs.isNotEmpty() || uiState.selectedPlaylistIds.isNotEmpty()),
+                visible = when (selectedTab) {
+                    PlaylistMediaTab.AUDIO -> uiState.isEditMode && (uiState.selectedSongs.isNotEmpty() || uiState.selectedPlaylistIds.isNotEmpty())
+                    PlaylistMediaTab.VIDEO -> videoUiState.isEditMode && (videoUiState.selectedVideos.isNotEmpty() || videoUiState.selectedPlaylistIds.isNotEmpty())
+                },
                 enter = slideInVertically(initialOffsetY = { it }),
                 exit = slideOutVertically(targetOffsetY = { it })
             ) {
@@ -162,10 +236,18 @@ fun PlaylistScreen(
                         horizontalArrangement = Arrangement.Center,
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        val singleSelection = (uiState.selectedSongs.size + uiState.selectedPlaylistIds.size) == 1
+                        val singleSelection = when (selectedTab) {
+                            PlaylistMediaTab.AUDIO -> (uiState.selectedSongs.size + uiState.selectedPlaylistIds.size) == 1
+                            PlaylistMediaTab.VIDEO -> (videoUiState.selectedVideos.size + videoUiState.selectedPlaylistIds.size) == 1
+                        }
                         
                         Button(
-                            onClick = { viewModel.removeSelected() },
+                            onClick = {
+                                when (selectedTab) {
+                                    PlaylistMediaTab.AUDIO -> viewModel.removeSelected()
+                                    PlaylistMediaTab.VIDEO -> videoViewModel.removeSelected()
+                                }
+                            },
                             colors = ButtonDefaults.buttonColors(
                                 containerColor = MaterialTheme.colorScheme.errorContainer,
                                 contentColor = MaterialTheme.colorScheme.onErrorContainer
@@ -180,7 +262,12 @@ fun PlaylistScreen(
 
                         Row {
                             IconButton(
-                                onClick = { viewModel.moveSelectedUp() },
+                                onClick = {
+                                    when (selectedTab) {
+                                        PlaylistMediaTab.AUDIO -> viewModel.moveSelectedUp()
+                                        PlaylistMediaTab.VIDEO -> videoViewModel.moveSelectedUp()
+                                    }
+                                },
                                 enabled = singleSelection
                             ) {
                                 Icon(
@@ -190,7 +277,12 @@ fun PlaylistScreen(
                                 )
                             }
                             IconButton(
-                                onClick = { viewModel.moveSelectedDown() },
+                                onClick = {
+                                    when (selectedTab) {
+                                        PlaylistMediaTab.AUDIO -> viewModel.moveSelectedDown()
+                                        PlaylistMediaTab.VIDEO -> videoViewModel.moveSelectedDown()
+                                    }
+                                },
                                 enabled = singleSelection
                             ) {
                                 Icon(
@@ -205,7 +297,7 @@ fun PlaylistScreen(
             }
         },
         floatingActionButton = {
-            if (!uiState.isEditMode && !uiState.isLoading) {
+            if (!isEditMode && !uiState.isLoading && !videoUiState.isLoading) {
                 FloatingActionButton(
                     onClick = { showCreateDialog = true },
                     containerColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.5f),
@@ -216,7 +308,11 @@ fun PlaylistScreen(
             }
         }
     ) { padding ->
-        if (uiState.isLoading && uiState.playlists.isEmpty()) {
+        val isLoading = when (selectedTab) {
+            PlaylistMediaTab.AUDIO -> uiState.isLoading && uiState.playlists.isEmpty()
+            PlaylistMediaTab.VIDEO -> videoUiState.isLoading && videoUiState.playlists.isEmpty()
+        }
+        if (isLoading) {
             Box(
                 modifier = Modifier.fillMaxSize().padding(padding),
                 contentAlignment = Alignment.Center
@@ -224,34 +320,79 @@ fun PlaylistScreen(
                 CircularProgressIndicator()
             }
         } else {
-            PlaylistContent(
-                uiState = uiState,
-                activeSongPath = activeSongPath,
-                modifier = Modifier.padding(padding),
-                listState = listState,
-                onPlaylistClick = { id ->
-                    if (uiState.isEditMode) {
-                        viewModel.togglePlaylistSelection(id)
-                    } else {
-                        viewModel.togglePlaylistExpansion(id)
-                    }
-                },
-                onPlaylistLongClick = { viewModel.onItemLongClicked(it) },
-                onRenameClick = { playlistToRename = it },
-                onDeleteClick = { viewModel.onDeletePlaylist(it) },
-                onDuplicateClick = { viewModel.onDuplicatePlaylist(it) },
-                onPlayPlaylistClick = { viewModel.onPlayPlaylist(it) },
-                onSongClick = { song, pId ->
-                    if (uiState.isEditMode) {
-                        viewModel.toggleSongSelection(pId, song.path)
-                    } else {
-                        viewModel.onPlaySongInPlaylist(song, pId)
-                    }
-                },
-                onSongLongClick = { pId, song -> 
-                    viewModel.onSongLongClicked(pId, song)
+            Column(modifier = Modifier.padding(padding)) {
+                TabRow(selectedTabIndex = if (selectedTab == PlaylistMediaTab.AUDIO) 0 else 1) {
+                    Tab(
+                        selected = selectedTab == PlaylistMediaTab.AUDIO,
+                        onClick = { selectedTab = PlaylistMediaTab.AUDIO },
+                        text = { Text(stringResource(R.string.music_mode)) }
+                    )
+                    Tab(
+                        selected = selectedTab == PlaylistMediaTab.VIDEO,
+                        onClick = { selectedTab = PlaylistMediaTab.VIDEO },
+                        text = { Text(stringResource(R.string.video_mode)) }
+                    )
                 }
-            )
+                when (selectedTab) {
+                    PlaylistMediaTab.AUDIO -> PlaylistContent(
+                        uiState = uiState,
+                        activeSongPath = activeSongPath,
+                        modifier = Modifier.fillMaxSize(),
+                        listState = listState,
+                        onPlaylistClick = { id ->
+                            if (uiState.isEditMode) {
+                                viewModel.togglePlaylistSelection(id)
+                            } else {
+                                viewModel.togglePlaylistExpansion(id)
+                            }
+                        },
+                        onPlaylistLongClick = { viewModel.onItemLongClicked(it) },
+                        onRenameClick = { playlistToRename = it },
+                        onDeleteClick = { viewModel.onDeletePlaylist(it) },
+                        onDuplicateClick = { viewModel.onDuplicatePlaylist(it) },
+                        onPlayPlaylistClick = { viewModel.onPlayPlaylist(it) },
+                        onSongClick = { song, pId ->
+                            if (uiState.isEditMode) {
+                                viewModel.toggleSongSelection(pId, song.path)
+                            } else {
+                                viewModel.onPlaySongInPlaylist(song, pId)
+                            }
+                        },
+                        onSongLongClick = { pId, song ->
+                            viewModel.onSongLongClicked(pId, song)
+                        }
+                    )
+                    PlaylistMediaTab.VIDEO -> VideoPlaylistContent(
+                        uiState = videoUiState,
+                        activeVideoPath = activeVideoPath,
+                        imageLoader = videoThumbnailImageLoader,
+                        modifier = Modifier.fillMaxSize(),
+                        listState = videoListState,
+                        onPlaylistClick = { id ->
+                            if (videoUiState.isEditMode) {
+                                videoViewModel.togglePlaylistSelection(id)
+                            } else {
+                                videoViewModel.togglePlaylistExpansion(id)
+                            }
+                        },
+                        onPlaylistLongClick = { videoViewModel.onItemLongClicked(it) },
+                        onRenameClick = { videoPlaylistToRename = it },
+                        onDeleteClick = { videoViewModel.onDeletePlaylist(it) },
+                        onDuplicateClick = { videoViewModel.onDuplicatePlaylist(it) },
+                        onPlayPlaylistClick = { videoViewModel.onPlayPlaylist(it) },
+                        onVideoClick = { video, pId ->
+                            if (videoUiState.isEditMode) {
+                                videoViewModel.toggleVideoSelection(pId, video.path)
+                            } else {
+                                videoViewModel.onPlayVideoInPlaylist(video, pId)
+                            }
+                        },
+                        onVideoLongClick = { pId, video ->
+                            videoViewModel.onVideoLongClicked(pId, video)
+                        }
+                    )
+                }
+            }
         }
 
         if (showCreateDialog) {
@@ -260,7 +401,10 @@ fun PlaylistScreen(
                 initialName = "",
                 onDismiss = { showCreateDialog = false },
                 onConfirm = { name ->
-                    viewModel.onCreatePlaylist(name)
+                    when (selectedTab) {
+                        PlaylistMediaTab.AUDIO -> viewModel.onCreatePlaylist(name)
+                        PlaylistMediaTab.VIDEO -> videoViewModel.onCreatePlaylist(name)
+                    }
                     showCreateDialog = false
                 }
             )
@@ -274,6 +418,18 @@ fun PlaylistScreen(
                 onConfirm = { newName ->
                     viewModel.onRenamePlaylist(playlist, newName)
                     playlistToRename = null
+                }
+            )
+        }
+
+        videoPlaylistToRename?.let { playlist ->
+            PlaylistInputDialog(
+                title = stringResource(R.string.playlist_edit),
+                initialName = playlist.name,
+                onDismiss = { videoPlaylistToRename = null },
+                onConfirm = { newName ->
+                    videoViewModel.onRenamePlaylist(playlist, newName)
+                    videoPlaylistToRename = null
                 }
             )
         }

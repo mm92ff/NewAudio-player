@@ -1,6 +1,7 @@
 package com.example.newaudio.ui.permission
 
 import com.example.newaudio.domain.usecase.file.SetMusicFolderUseCase
+import com.example.newaudio.domain.usecase.file.SetVideoFolderUseCase
 import com.example.newaudio.domain.usecase.settings.GetUserSettingsUseCase
 import com.example.newaudio.fake.FakeMediaScannerRepository
 import com.example.newaudio.fake.FakeSettingsRepository
@@ -28,7 +29,8 @@ class PermissionViewModelTest {
 
     private fun buildViewModel(): PermissionViewModel = PermissionViewModel(
         getUserSettingsUseCase = GetUserSettingsUseCase(settingsRepo),
-        setMusicFolderUseCase = SetMusicFolderUseCase(settingsRepo, scannerRepo)
+        setMusicFolderUseCase = SetMusicFolderUseCase(settingsRepo, scannerRepo),
+        setVideoFolderUseCase = SetVideoFolderUseCase(settingsRepo, scannerRepo)
     )
 
     @Before
@@ -53,7 +55,9 @@ class PermissionViewModelTest {
         // Should show success with isMusicFolderSet = false (empty path)
         val finalState = vm.uiState.value
         assertTrue(finalState is PermissionUiState.Success)
-        assertFalse((finalState as PermissionUiState.Success).isMusicFolderSet)
+        finalState as PermissionUiState.Success
+        assertFalse(finalState.isMusicFolderSet)
+        assertFalse(finalState.isVideoFolderSet)
     }
 
     @Test
@@ -67,6 +71,20 @@ class PermissionViewModelTest {
         val finalState = vm.uiState.value
         assertTrue(finalState is PermissionUiState.Success)
         assertTrue((finalState as PermissionUiState.Success).isMusicFolderSet)
+        assertFalse(finalState.isVideoFolderSet)
+    }
+
+    @Test
+    fun `initial state shows video folder as set when path is not blank`() = runTest {
+        settingsRepo.setVideoFolderPath("/sdcard/Movies")
+
+        val vm = buildViewModel()
+        advanceUntilIdle()
+
+        val finalState = vm.uiState.value
+        assertTrue(finalState is PermissionUiState.Success)
+        assertFalse((finalState as PermissionUiState.Success).isMusicFolderSet)
+        assertTrue(finalState.isVideoFolderSet)
     }
 
     @Test
@@ -83,6 +101,18 @@ class PermissionViewModelTest {
     }
 
     @Test
+    fun `onVideoFolderSelected sets folder path and triggers video scan`() = runTest {
+        val vm = buildViewModel()
+        advanceUntilIdle()
+
+        val testPath = "/sdcard/Movies"
+        vm.onVideoFolderSelected(testPath)
+        advanceUntilIdle()
+
+        assertEquals(testPath, scannerRepo.scanVideoDirectoryCalled)
+    }
+
+    @Test
     fun `onMusicFolderSelected completes successfully`() = runTest {
         val vm = buildViewModel()
         advanceUntilIdle()
@@ -95,8 +125,25 @@ class PermissionViewModelTest {
         val finalState = vm.uiState.value
         assertTrue(finalState is PermissionUiState.Success)
         assertTrue((finalState as PermissionUiState.Success).isMusicFolderSet)
+        assertFalse(finalState.isVideoFolderSet)
 
         // Should trigger scan
         assertEquals(testPath, scannerRepo.scanDirectoryCalled)
+    }
+
+    @Test
+    fun `onVideoFolderSelected completes successfully`() = runTest {
+        val vm = buildViewModel()
+        advanceUntilIdle()
+
+        val testPath = "/test/video/path"
+        vm.onVideoFolderSelected(testPath)
+        advanceUntilIdle()
+
+        val finalState = vm.uiState.value
+        assertTrue(finalState is PermissionUiState.Success)
+        assertFalse((finalState as PermissionUiState.Success).isMusicFolderSet)
+        assertTrue(finalState.isVideoFolderSet)
+        assertEquals(testPath, scannerRepo.scanVideoDirectoryCalled)
     }
 }

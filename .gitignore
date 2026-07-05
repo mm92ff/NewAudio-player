@@ -1,4 +1,5 @@
 # Built artifacts
+apks/
 *.apk
 *.aab
 *.ap_
@@ -49,4 +50,5 @@ githubfolder/
 
 # Governance / internal profiles (not part of the public repo)
 governance/
+plans/
 *.bat

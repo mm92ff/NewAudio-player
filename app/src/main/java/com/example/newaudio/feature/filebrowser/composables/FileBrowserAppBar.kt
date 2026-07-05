@@ -7,6 +7,8 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Checklist
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.Movie
+import androidx.compose.material.icons.filled.MusicNote
 import androidx.compose.material.icons.filled.PlaylistPlay
 import androidx.compose.material.icons.filled.SelectAll
 import androidx.compose.material.icons.filled.Settings
@@ -17,6 +19,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextOverflow
 import com.example.newaudio.R
+import com.example.newaudio.domain.model.MediaBrowserMode
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -26,6 +29,8 @@ fun FileBrowserAppBar(
     onNavigateUp: () -> Unit,
     onSettingsClick: () -> Unit,
     onPlaylistClick: () -> Unit,
+    browserMode: MediaBrowserMode,
+    onToggleBrowserMode: () -> Unit,
     isEditMode: Boolean,
     selectedCount: Int,
     allSelected: Boolean,
@@ -51,6 +56,8 @@ fun FileBrowserAppBar(
             onNavigateUp = onNavigateUp,
             onSettingsClick = onSettingsClick,
             onPlaylistClick = onPlaylistClick,
+            browserMode = browserMode,
+            onToggleBrowserMode = onToggleBrowserMode,
             onToggleEditMode = onToggleEditMode,
             isReversedLayout = isReversedLayout,
             windowInsets = windowInsets,
@@ -67,6 +74,8 @@ private fun NormalAppBar(
     onNavigateUp: () -> Unit,
     onSettingsClick: () -> Unit,
     onPlaylistClick: () -> Unit,
+    browserMode: MediaBrowserMode,
+    onToggleBrowserMode: () -> Unit,
     onToggleEditMode: () -> Unit,
     isReversedLayout: Boolean,
     windowInsets: WindowInsets,
@@ -78,6 +87,25 @@ private fun NormalAppBar(
     val actionsButtons: @Composable () -> Unit = {
         // Define the list of buttons
         val buttons = listOf<@Composable () -> Unit>(
+            {
+                TextButton(onClick = onToggleBrowserMode) {
+                    Icon(
+                        imageVector = if (browserMode == MediaBrowserMode.MUSIC) {
+                            Icons.Default.MusicNote
+                        } else {
+                            Icons.Default.Movie
+                        },
+                        contentDescription = null
+                    )
+                    Text(
+                        text = if (browserMode == MediaBrowserMode.MUSIC) {
+                            stringResource(R.string.music_mode)
+                        } else {
+                            stringResource(R.string.video_mode)
+                        }
+                    )
+                }
+            },
             {
                 IconButton(onClick = onToggleEditMode) {
                     Icon(

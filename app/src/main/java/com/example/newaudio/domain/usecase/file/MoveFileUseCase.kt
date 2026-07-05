@@ -59,6 +59,7 @@ class MoveFileUseCase @Inject constructor(
             songDao.updatePath(
                 oldPath = oldPath,
                 newPath = newPath,
+                newContentUri = newPath,
                 newParentPath = targetParent,
                 newFilename = actualName
             )

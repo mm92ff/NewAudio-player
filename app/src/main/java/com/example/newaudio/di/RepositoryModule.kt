@@ -8,6 +8,8 @@ import com.example.newaudio.data.repository.MediaRepositoryImpl
 import com.example.newaudio.data.repository.MediaScannerRepositoryImpl
 import com.example.newaudio.data.repository.PlaylistRepositoryImpl
 import com.example.newaudio.data.repository.SettingsRepositoryImpl
+import com.example.newaudio.data.repository.VideoMarkerRepositoryImpl
+import com.example.newaudio.data.repository.VideoPlaylistRepositoryImpl
 import com.example.newaudio.domain.repository.AudioSettingsRepository
 import com.example.newaudio.domain.repository.IEqualizerRepository
 import com.example.newaudio.domain.repository.IErrorRepository
@@ -16,6 +18,8 @@ import com.example.newaudio.domain.repository.IMediaRepository
 import com.example.newaudio.domain.repository.IMediaScannerRepository
 import com.example.newaudio.domain.repository.IPlaylistRepository
 import com.example.newaudio.domain.repository.ISettingsRepository
+import com.example.newaudio.domain.repository.IVideoMarkerRepository
+import com.example.newaudio.domain.repository.IVideoPlaylistRepository
 import dagger.Binds
 import dagger.Module
 import dagger.hilt.InstallIn
@@ -59,4 +63,12 @@ abstract class RepositoryModule {
     @Binds
     @Singleton
     abstract fun bindPlaylistRepository(impl: PlaylistRepositoryImpl): IPlaylistRepository
+
+    @Binds
+    @Singleton
+    abstract fun bindVideoPlaylistRepository(impl: VideoPlaylistRepositoryImpl): IVideoPlaylistRepository
+
+    @Binds
+    @Singleton
+    abstract fun bindVideoMarkerRepository(impl: VideoMarkerRepositoryImpl): IVideoMarkerRepository
 }

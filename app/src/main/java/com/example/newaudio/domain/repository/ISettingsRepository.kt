@@ -16,6 +16,12 @@ interface ISettingsRepository {
     suspend fun setUseMarquee(useMarquee: Boolean)
     suspend fun setShowHiddenFiles(show: Boolean)
     suspend fun setPlayOnFolderClick(isEnabled: Boolean)
+    suspend fun setResumeSessionOnModeSwitch(isEnabled: Boolean)
+    suspend fun setShowVideoPreviewItems(isEnabled: Boolean)
+    suspend fun setVideoDisplayMode(mode: UserPreferences.VideoDisplayMode)
+    suspend fun setVideoGalleryColumns(columns: Int)
+    suspend fun setShowVideoNamesInGallery(isEnabled: Boolean)
+    suspend fun setVideoMarkersEnabled(isEnabled: Boolean)
     suspend fun setShowFolderSongCount(isEnabled: Boolean)
 
     // Autoplay Settings
@@ -26,6 +32,8 @@ interface ISettingsRepository {
     // Musikordner Methoden
     suspend fun setMusicFolderPath(path: String)
     fun getMusicFolderPath(): Flow<String>
+    suspend fun setVideoFolderPath(path: String)
+    fun getVideoFolderPath(): Flow<String>
 
     // Progress bar heights
     suspend fun setMiniPlayerProgressBarHeight(height: Float)

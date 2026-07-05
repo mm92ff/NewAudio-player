@@ -1,6 +1,7 @@
 package com.example.newaudio.feature.filebrowser
 
 import com.example.newaudio.R
+import com.example.newaudio.domain.model.MediaBrowserMode
 import com.example.newaudio.domain.model.UserPreferences
 import com.example.newaudio.domain.repository.IMediaRepository
 import com.example.newaudio.domain.repository.IMediaStoreObserverRepository
@@ -42,6 +43,7 @@ internal class FileBrowserBindings(
     private val logTag: String
 ) {
     private var lastSongPath: String? = null
+    private var lastVideoPath: String? = null
     private var lastRepeatModeRaw: Int = Int.MIN_VALUE
 
     private var pendingRestoreFolder: String? = null
@@ -62,6 +64,11 @@ internal class FileBrowserBindings(
                     it.copy(
                         oneHandedMode = settings.oneHandedMode,
                         playOnFolderClick = settings.playOnFolderClick,
+                        resumeSessionOnModeSwitch = settings.resumeSessionOnModeSwitch,
+                        showVideoPreviewItems = settings.showVideoPreviewItems,
+                        videoDisplayMode = settings.videoDisplayMode,
+                        videoGalleryColumns = settings.videoGalleryColumns,
+                        showVideoNamesInGallery = settings.showVideoNamesInGallery,
                         transparentListItems = settings.transparentListItems
                     )
                 }
@@ -71,7 +78,7 @@ internal class FileBrowserBindings(
 
     private fun bindRoot() {
         scope.launch {
-            val root = getRootPathUseCase()
+            val root = getRootPathUseCase(uiState.value.browserMode)
             Timber.tag(logTag).d("Initializing with root: %s", root)
 
             uiState.update {
@@ -96,23 +103,28 @@ internal class FileBrowserBindings(
         mediaRepository.getPlaybackState()
             .distinctUntilChanged { old, new ->
                 old.currentSong?.path == new.currentSong?.path &&
+                        old.currentVideo?.path == new.currentVideo?.path &&
                         old.repeatMode == new.repeatMode &&
                         old.isRestoring == new.isRestoring
             }
             .onEach { ps ->
                 val songPath = ps.currentSong?.path
+                val videoPath = ps.currentVideo?.path
                 val repeatRaw = ps.repeatMode
 
                 val songChanged = songPath != lastSongPath
+                val videoChanged = videoPath != lastVideoPath
                 val repeatChanged = repeatRaw != lastRepeatModeRaw
 
-                if (songChanged || repeatChanged) {
+                if (songChanged || videoChanged || repeatChanged) {
                     if (songChanged) lastSongPath = songPath
+                    if (videoChanged) lastVideoPath = videoPath
                     if (repeatChanged) lastRepeatModeRaw = repeatRaw
 
                     uiState.update { state ->
                         state.copy(
                             activeSongPath = if (songChanged) songPath else state.activeSongPath,
+                            activeVideoPath = if (videoChanged) videoPath else state.activeVideoPath,
                             repeatMode = if (repeatChanged) mapRepeatMode(repeatRaw) else state.repeatMode
                         )
                     }
@@ -152,7 +164,7 @@ internal class FileBrowserBindings(
             .distinctUntilChanged()
             .flatMapLatest { path ->
                 Timber.tag(logTag).d("New path observed: %s. Starting new file tree collection.", path)
-                getSortedFileTreeUseCase(path)
+                getSortedFileTreeUseCase(path, uiState.value.browserMode)
                     .map { Result.success(it) }
                     .catch { e ->
                         if (e is kotlinx.coroutines.CancellationException) throw e
@@ -182,8 +194,19 @@ internal class FileBrowserBindings(
     private fun bindMediaStoreObserver() {
         mediaStoreObserverRepository.observeAudioChanges()
             .onEach {
-                Timber.tag(logTag).d("MediaStore change detected, refreshing current folder.")
-                onAutoRefresh()
+                if (uiState.value.browserMode == MediaBrowserMode.MUSIC) {
+                    Timber.tag(logTag).d("Audio MediaStore change detected, refreshing current folder.")
+                    onAutoRefresh()
+                }
+            }
+            .launchIn(scope)
+
+        mediaStoreObserverRepository.observeVideoChanges()
+            .onEach {
+                if (uiState.value.browserMode == MediaBrowserMode.VIDEO) {
+                    Timber.tag(logTag).d("Video MediaStore change detected, refreshing current folder.")
+                    onAutoRefresh()
+                }
             }
             .launchIn(scope)
     }

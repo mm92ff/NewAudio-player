@@ -37,11 +37,18 @@ class SettingsRepositoryImpl @Inject constructor(
 
         val REPEAT_MODE = stringPreferencesKey("repeat_mode")
         val MUSIC_FOLDER_PATH = stringPreferencesKey("music_folder_path")
+        val VIDEO_FOLDER_PATH = stringPreferencesKey("video_folder_path")
         val MINI_PLAYER_PROGRESS_BAR_HEIGHT = floatPreferencesKey("mini_player_progress_bar_height")
         val FULL_SCREEN_PLAYER_PROGRESS_BAR_HEIGHT = floatPreferencesKey("full_screen_player_progress_bar_height")
         val ONE_HANDED_MODE = booleanPreferencesKey("one_handed_mode")
         val SHOW_HIDDEN_FILES = booleanPreferencesKey("show_hidden_files")
         val PLAY_ON_FOLDER_CLICK = booleanPreferencesKey("play_on_folder_click")
+        val RESUME_SESSION_ON_MODE_SWITCH = booleanPreferencesKey("resume_session_on_mode_switch")
+        val SHOW_VIDEO_PREVIEW_ITEMS = booleanPreferencesKey("show_video_preview_items")
+        val VIDEO_DISPLAY_MODE = stringPreferencesKey("video_display_mode")
+        val VIDEO_GALLERY_COLUMNS = intPreferencesKey("video_gallery_columns")
+        val SHOW_VIDEO_NAMES_IN_GALLERY = booleanPreferencesKey("show_video_names_in_gallery")
+        val VIDEO_MARKERS_ENABLED = booleanPreferencesKey("video_markers_enabled")
         val SHOW_FOLDER_SONG_COUNT = booleanPreferencesKey("show_folder_song_count")
         val BACKGROUND_TINT_FRACTION = floatPreferencesKey("background_tint_fraction")
         val BACKGROUND_GRADIENT_ENABLED = booleanPreferencesKey("background_gradient_enabled")
@@ -87,6 +94,15 @@ class SettingsRepositoryImpl @Inject constructor(
 
             // Fix: Unified value for marquee
             val marqueeEnabled = preferences[Keys.IS_MARQUEE_ENABLED] ?: defaultValues.isMarqueeEnabled
+            val legacyVideoPreviewEnabled = preferences[Keys.SHOW_VIDEO_PREVIEW_ITEMS]
+                ?: defaultValues.showVideoPreviewItems
+            val videoDisplayMode = preferences[Keys.VIDEO_DISPLAY_MODE]?.let {
+                safeEnumValueOf(it, defaultValues.videoDisplayMode)
+            } ?: if (legacyVideoPreviewEnabled) {
+                UserPreferences.VideoDisplayMode.PREVIEW_LIST
+            } else {
+                defaultValues.videoDisplayMode
+            }
 
             UserPreferences(
                 theme = theme,
@@ -103,11 +119,22 @@ class SettingsRepositoryImpl @Inject constructor(
 
                 isAutoPlayOnBluetooth = preferences[Keys.IS_AUTOPLAY_ON_BLUETOOTH] ?: defaultValues.isAutoPlayOnBluetooth,
                 musicFolderPath = preferences[Keys.MUSIC_FOLDER_PATH] ?: defaultValues.musicFolderPath,
+                videoFolderPath = preferences[Keys.VIDEO_FOLDER_PATH] ?: defaultValues.videoFolderPath,
                 miniPlayerProgressBarHeight = preferences[Keys.MINI_PLAYER_PROGRESS_BAR_HEIGHT] ?: defaultValues.miniPlayerProgressBarHeight,
                 fullScreenPlayerProgressBarHeight = preferences[Keys.FULL_SCREEN_PLAYER_PROGRESS_BAR_HEIGHT] ?: defaultValues.fullScreenPlayerProgressBarHeight,
                 oneHandedMode = preferences[Keys.ONE_HANDED_MODE] ?: defaultValues.oneHandedMode,
                 showHiddenFiles = preferences[Keys.SHOW_HIDDEN_FILES] ?: defaultValues.showHiddenFiles,
                 playOnFolderClick = preferences[Keys.PLAY_ON_FOLDER_CLICK] ?: defaultValues.playOnFolderClick,
+                resumeSessionOnModeSwitch = preferences[Keys.RESUME_SESSION_ON_MODE_SWITCH]
+                    ?: defaultValues.resumeSessionOnModeSwitch,
+                showVideoPreviewItems = legacyVideoPreviewEnabled,
+                videoDisplayMode = videoDisplayMode,
+                videoGalleryColumns = (preferences[Keys.VIDEO_GALLERY_COLUMNS]
+                    ?: defaultValues.videoGalleryColumns).coerceIn(2, 4),
+                showVideoNamesInGallery = preferences[Keys.SHOW_VIDEO_NAMES_IN_GALLERY]
+                    ?: defaultValues.showVideoNamesInGallery,
+                videoMarkersEnabled = preferences[Keys.VIDEO_MARKERS_ENABLED]
+                    ?: defaultValues.videoMarkersEnabled,
                 showFolderSongCount = preferences[Keys.SHOW_FOLDER_SONG_COUNT] ?: defaultValues.showFolderSongCount,
                 backgroundTintFraction = preferences[Keys.BACKGROUND_TINT_FRACTION] ?: defaultValues.backgroundTintFraction,
                 backgroundGradientEnabled = preferences[Keys.BACKGROUND_GRADIENT_ENABLED] ?: defaultValues.backgroundGradientEnabled,
@@ -162,6 +189,10 @@ class SettingsRepositoryImpl @Inject constructor(
         dataStore.edit { it[Keys.MUSIC_FOLDER_PATH] = path }
     }
 
+    override suspend fun setVideoFolderPath(path: String) {
+        dataStore.edit { it[Keys.VIDEO_FOLDER_PATH] = path }
+    }
+
     override suspend fun setMiniPlayerProgressBarHeight(height: Float) {
         dataStore.edit { it[Keys.MINI_PLAYER_PROGRESS_BAR_HEIGHT] = height }
     }
@@ -176,6 +207,39 @@ class SettingsRepositoryImpl @Inject constructor(
 
     override suspend fun setPlayOnFolderClick(isEnabled: Boolean) {
         dataStore.edit { it[Keys.PLAY_ON_FOLDER_CLICK] = isEnabled }
+    }
+
+    override suspend fun setResumeSessionOnModeSwitch(isEnabled: Boolean) {
+        dataStore.edit { it[Keys.RESUME_SESSION_ON_MODE_SWITCH] = isEnabled }
+    }
+
+    override suspend fun setShowVideoPreviewItems(isEnabled: Boolean) {
+        dataStore.edit { it[Keys.SHOW_VIDEO_PREVIEW_ITEMS] = isEnabled }
+    }
+
+    override suspend fun setVideoDisplayMode(mode: UserPreferences.VideoDisplayMode) {
+        dataStore.edit { preferences ->
+            preferences[Keys.VIDEO_DISPLAY_MODE] = mode.name
+            preferences[Keys.SHOW_VIDEO_PREVIEW_ITEMS] = mode == UserPreferences.VideoDisplayMode.PREVIEW_LIST
+        }
+    }
+
+    override suspend fun setVideoGalleryColumns(columns: Int) {
+        dataStore.edit { preferences ->
+            preferences[Keys.VIDEO_GALLERY_COLUMNS] = columns.coerceIn(2, 4)
+        }
+    }
+
+    override suspend fun setShowVideoNamesInGallery(isEnabled: Boolean) {
+        dataStore.edit { preferences ->
+            preferences[Keys.SHOW_VIDEO_NAMES_IN_GALLERY] = isEnabled
+        }
+    }
+
+    override suspend fun setVideoMarkersEnabled(isEnabled: Boolean) {
+        dataStore.edit { preferences ->
+            preferences[Keys.VIDEO_MARKERS_ENABLED] = isEnabled
+        }
     }
 
     override suspend fun setShowFolderSongCount(isEnabled: Boolean) {
@@ -216,11 +280,18 @@ class SettingsRepositoryImpl @Inject constructor(
             p[Keys.IS_AUTOPLAY_ON_BLUETOOTH] = prefs.isAutoPlayOnBluetooth
             p[Keys.REPEAT_MODE] = prefs.repeatMode.name
             p[Keys.MUSIC_FOLDER_PATH] = prefs.musicFolderPath
+            p[Keys.VIDEO_FOLDER_PATH] = prefs.videoFolderPath
             p[Keys.MINI_PLAYER_PROGRESS_BAR_HEIGHT] = prefs.miniPlayerProgressBarHeight
             p[Keys.FULL_SCREEN_PLAYER_PROGRESS_BAR_HEIGHT] = prefs.fullScreenPlayerProgressBarHeight
             p[Keys.ONE_HANDED_MODE] = prefs.oneHandedMode
             p[Keys.SHOW_HIDDEN_FILES] = prefs.showHiddenFiles
             p[Keys.PLAY_ON_FOLDER_CLICK] = prefs.playOnFolderClick
+            p[Keys.RESUME_SESSION_ON_MODE_SWITCH] = prefs.resumeSessionOnModeSwitch
+            p[Keys.SHOW_VIDEO_PREVIEW_ITEMS] = prefs.showVideoPreviewItems
+            p[Keys.VIDEO_DISPLAY_MODE] = prefs.videoDisplayMode.name
+            p[Keys.VIDEO_GALLERY_COLUMNS] = prefs.videoGalleryColumns.coerceIn(2, 4)
+            p[Keys.SHOW_VIDEO_NAMES_IN_GALLERY] = prefs.showVideoNamesInGallery
+            p[Keys.VIDEO_MARKERS_ENABLED] = prefs.videoMarkersEnabled
             p[Keys.SHOW_FOLDER_SONG_COUNT] = prefs.showFolderSongCount
             p[Keys.BACKGROUND_TINT_FRACTION] = prefs.backgroundTintFraction
             p[Keys.BACKGROUND_GRADIENT_ENABLED] = prefs.backgroundGradientEnabled
@@ -241,6 +312,18 @@ class SettingsRepositoryImpl @Inject constructor(
         }
         .map { preferences ->
             preferences[Keys.MUSIC_FOLDER_PATH] ?: ""
+        }
+
+    override fun getVideoFolderPath(): Flow<String> = dataStore.data
+        .catch { exception ->
+            if (exception is IOException) {
+                emit(emptyPreferences())
+            } else {
+                throw exception
+            }
+        }
+        .map { preferences ->
+            preferences[Keys.VIDEO_FOLDER_PATH] ?: ""
         }
 
     // --- Resume Logic ---

@@ -17,5 +17,9 @@ class ResetDatabaseUseCase @Inject constructor(
         if (musicPath.isNotEmpty()) {
             mediaScannerRepository.scanDirectory(musicPath)
         }
+        val videoPath = settingsRepository.getVideoFolderPath().first()
+        if (videoPath.isNotEmpty()) {
+            mediaScannerRepository.scanVideoDirectory(videoPath)
+        }
     }
 }

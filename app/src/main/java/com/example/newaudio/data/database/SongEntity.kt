@@ -39,7 +39,7 @@ data class SongEntity(
         return Song(
             path = path,
             contentUri = contentUri,
-            title = title,
+            title = title.takeIf { it.isNotBlank() } ?: File(path).nameWithoutExtension.ifBlank { "Unknown Title" },
             artist = artist,
             duration = duration,
             albumArtPath = albumArtPath

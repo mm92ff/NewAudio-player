@@ -12,7 +12,7 @@ sealed interface FileItem {
     data class Folder(
         override val name: String,
         override val path: String,
-        val songCount: Int? = null // New property
+        val mediaCount: Int? = null
     ) : FileItem
 
     data class AudioFile(
@@ -20,6 +20,13 @@ sealed interface FileItem {
         override val path: String,
         val songId: Long, // MediaStore ID for the audio file
         val song: Song // Embed the song details for playable files
+    ) : FileItem
+
+    data class VideoFile(
+        override val name: String,
+        override val path: String,
+        val videoId: Long,
+        val video: Video
     ) : FileItem
 
     data class OtherFile(

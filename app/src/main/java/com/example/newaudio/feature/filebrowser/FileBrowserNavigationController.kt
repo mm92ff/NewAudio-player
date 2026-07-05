@@ -1,6 +1,7 @@
 package com.example.newaudio.feature.filebrowser
 
 import com.example.newaudio.R
+import com.example.newaudio.domain.model.MediaBrowserMode
 import com.example.newaudio.domain.usecase.file.GetParentPathUseCase
 import com.example.newaudio.domain.usecase.file.GetRootPathUseCase
 import com.example.newaudio.util.UiText
@@ -23,7 +24,7 @@ internal class FileBrowserNavigationController(
 
     fun checkPermissionsAndLoadRoot() {
         scope.launch {
-            val root = getRootPathUseCase()
+            val root = getRootPathUseCase(uiState.value.browserMode)
             Timber.tag(logTag).d("Manual Reload Root: %s", root)
 
             uiState.update {
@@ -39,6 +40,36 @@ internal class FileBrowserNavigationController(
             } else {
                 uiState.update { it.copy(errorRes = UiText.StringResource(R.string.select_other_folder)) }
             }
+        }
+    }
+
+    fun switchMode(mode: MediaBrowserMode) {
+        scope.launch {
+            switchModeNow(mode)
+        }
+    }
+
+    suspend fun switchModeNow(mode: MediaBrowserMode) {
+        val root = getRootPathUseCase(mode)
+        Timber.tag(logTag).d("Switch browser mode to %s root=%s", mode, root)
+
+        uiState.update {
+            it.copy(
+                browserMode = mode,
+                rootPath = root,
+                pathHistory = persistentListOf(),
+                canNavigateBack = false,
+                isEditMode = false,
+                selectedPaths = kotlinx.collections.immutable.persistentSetOf(),
+                clipboardState = ClipboardState.Empty,
+                showInlineVideo = false
+            )
+        }
+
+        if (root.isNotEmpty()) {
+            loadPath(root, false)
+        } else {
+            uiState.update { it.copy(errorRes = UiText.StringResource(R.string.select_other_folder), isLoading = false) }
         }
     }
 
@@ -71,7 +102,7 @@ internal class FileBrowserNavigationController(
                 isLoading = true,
                 currentPath = normalizedPath,
                 pathHistory = newHistory,
-                canNavigateBack = newHistory.isNotEmpty(),
+                canNavigateBack = canNavigateBackFrom(normalizedPath, currentState.rootPath, newHistory.isNotEmpty()),
                 errorRes = null
             )
         }
@@ -91,7 +122,7 @@ internal class FileBrowserNavigationController(
             uiState.update {
                 it.copy(
                     pathHistory = newHistory,
-                    canNavigateBack = newHistory.isNotEmpty()
+                    canNavigateBack = canNavigateBackFrom(previousPath, it.rootPath, newHistory.isNotEmpty())
                 )
             }
 
@@ -106,5 +137,15 @@ internal class FileBrowserNavigationController(
                 loadPath(parent, false)
             }
         }
+    }
+
+    private fun canNavigateBackFrom(path: String, rootPath: String, hasHistory: Boolean): Boolean {
+        if (hasHistory) return true
+
+        val normalizedPath = path.removeSuffix("/")
+        val normalizedRoot = rootPath.removeSuffix("/")
+        if (normalizedPath.isBlank() || normalizedRoot.isBlank()) return false
+
+        return normalizedPath != normalizedRoot && normalizedPath.startsWith("$normalizedRoot/")
     }
 }

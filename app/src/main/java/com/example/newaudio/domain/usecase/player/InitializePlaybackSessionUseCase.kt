@@ -30,7 +30,8 @@ class InitializePlaybackSessionUseCase @Inject constructor(
             .onFailure { Timber.tag(TAG).w(it, "Initial scan failed") }
 
         val state = mediaRepository.getPlaybackState().first()
-        if (state.currentSong == null) {
+        val playerHasLoadedMedia = state.player?.currentMediaItem != null
+        if (state.currentSong == null && state.currentVideo == null && !playerHasLoadedMedia) {
             runCatching { restorePlaybackStateUseCase() }
                 .onFailure { Timber.tag(TAG).w(it, "Restore playback failed") }
         }

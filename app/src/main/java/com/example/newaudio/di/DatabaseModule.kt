@@ -4,8 +4,12 @@ import android.content.Context
 import androidx.room.Room
 import com.example.newaudio.BuildConfig
 import com.example.newaudio.data.database.AppDatabase
+import com.example.newaudio.data.database.AppDatabaseMigrations
 import com.example.newaudio.data.database.SongDao
+import com.example.newaudio.data.database.VideoDao
 import com.example.newaudio.data.database.dao.PlaylistDao
+import com.example.newaudio.data.database.dao.VideoMarkerDao
+import com.example.newaudio.data.database.dao.VideoPlaylistDao
 import dagger.Module
 import dagger.Provides
 import dagger.hilt.InstallIn
@@ -31,6 +35,11 @@ object DatabaseModule {
             // is acceptable for those. From v3 onwards, add explicit migrations to
             // AppDatabaseMigrations and register them with .addMigrations(...).
             .fallbackToDestructiveMigrationFrom(1, 2)
+            .addMigrations(
+                AppDatabaseMigrations.MIGRATION_3_4,
+                AppDatabaseMigrations.MIGRATION_4_5,
+                AppDatabaseMigrations.MIGRATION_5_6
+            )
 
         if (BuildConfig.DEBUG) {
             builder.setQueryCallback({ sqlQuery, bindArgs ->
@@ -47,7 +56,22 @@ object DatabaseModule {
     }
 
     @Provides
+    fun provideVideoDao(database: AppDatabase): VideoDao {
+        return database.videoDao()
+    }
+
+    @Provides
     fun providePlaylistDao(database: AppDatabase): PlaylistDao {
         return database.playlistDao()
+    }
+
+    @Provides
+    fun provideVideoPlaylistDao(database: AppDatabase): VideoPlaylistDao {
+        return database.videoPlaylistDao()
+    }
+
+    @Provides
+    fun provideVideoMarkerDao(database: AppDatabase): VideoMarkerDao {
+        return database.videoMarkerDao()
     }
 }

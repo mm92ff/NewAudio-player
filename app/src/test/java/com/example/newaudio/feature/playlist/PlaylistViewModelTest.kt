@@ -117,16 +117,19 @@ class PlaylistViewModelTest {
 
         // Toggle to expand
         vm.togglePlaylistExpansion(playlistId)
+        advanceUntilIdle()
         assertTrue(vm.uiState.value.expandedIds.contains(playlistId))
 
         // Toggle to collapse
         vm.togglePlaylistExpansion(playlistId)
+        advanceUntilIdle()
         assertFalse(vm.uiState.value.expandedIds.contains(playlistId))
     }
 
     @Test
     fun `onRenamePlaylist updates playlist name in repository`() = runTest {
         val vm = buildViewModel()
+        backgroundScope.launch { vm.uiState.collect {} }
         advanceUntilIdle()
 
         // Create a playlist first
@@ -145,6 +148,7 @@ class PlaylistViewModelTest {
     @Test
     fun `onRenamePlaylist ignores blank names`() = runTest {
         val vm = buildViewModel()
+        backgroundScope.launch { vm.uiState.collect {} }
         advanceUntilIdle()
 
         // Create a playlist first
@@ -163,6 +167,7 @@ class PlaylistViewModelTest {
     @Test
     fun `onDeletePlaylist removes playlist and sends snackbar`() = runTest {
         val vm = buildViewModel()
+        backgroundScope.launch { vm.uiState.collect {} }
         advanceUntilIdle()
 
         val sideEffects = mutableListOf<PlaylistSideEffect>()
@@ -192,6 +197,7 @@ class PlaylistViewModelTest {
     @Test
     fun `toggleEditMode switches edit mode state and clears selections`() = runTest {
         val vm = buildViewModel()
+        backgroundScope.launch { vm.uiState.collect {} }
         advanceUntilIdle()
 
         // Initially not in edit mode
@@ -199,18 +205,21 @@ class PlaylistViewModelTest {
 
         // Toggle to edit mode
         vm.toggleEditMode()
+        advanceUntilIdle()
         assertTrue(vm.uiState.value.isEditMode)
         assertTrue(vm.uiState.value.selectedSongs.isEmpty())
         assertTrue(vm.uiState.value.selectedPlaylistIds.isEmpty())
 
         // Toggle back to normal mode
         vm.toggleEditMode()
+        advanceUntilIdle()
         assertFalse(vm.uiState.value.isEditMode)
     }
 
     @Test
     fun `togglePlaylistSelection adds and removes playlists from selection`() = runTest {
         val vm = buildViewModel()
+        backgroundScope.launch { vm.uiState.collect {} }
         advanceUntilIdle()
 
         val playlistId = 456L
@@ -220,16 +229,19 @@ class PlaylistViewModelTest {
 
         // Select playlist
         vm.togglePlaylistSelection(playlistId)
+        advanceUntilIdle()
         assertTrue(vm.uiState.value.selectedPlaylistIds.contains(playlistId))
 
         // Deselect playlist
         vm.togglePlaylistSelection(playlistId)
+        advanceUntilIdle()
         assertFalse(vm.uiState.value.selectedPlaylistIds.contains(playlistId))
     }
 
     @Test
     fun `toggleSongSelection adds and removes songs from selection`() = runTest {
         val vm = buildViewModel()
+        backgroundScope.launch { vm.uiState.collect {} }
         advanceUntilIdle()
 
         val playlistId = 789L
@@ -241,16 +253,19 @@ class PlaylistViewModelTest {
 
         // Select song
         vm.toggleSongSelection(playlistId, songPath)
+        advanceUntilIdle()
         assertTrue(vm.uiState.value.selectedSongs.contains(expectedSelection))
 
         // Deselect song
         vm.toggleSongSelection(playlistId, songPath)
+        advanceUntilIdle()
         assertFalse(vm.uiState.value.selectedSongs.contains(expectedSelection))
     }
 
     @Test
     fun `onPlayPlaylist sends play event for non-empty playlists`() = runTest {
         val vm = buildViewModel()
+        backgroundScope.launch { vm.uiState.collect {} }
         advanceUntilIdle()
 
         val events = mutableListOf<PlaylistEvent>()
@@ -275,6 +290,7 @@ class PlaylistViewModelTest {
     @Test
     fun `onItemLongClicked enables edit mode and selects playlist`() = runTest {
         val vm = buildViewModel()
+        backgroundScope.launch { vm.uiState.collect {} }
         advanceUntilIdle()
 
         // Create a playlist
@@ -284,6 +300,7 @@ class PlaylistViewModelTest {
         val playlist = vm.uiState.value.playlists[0]
 
         vm.onItemLongClicked(playlist)
+        advanceUntilIdle()
 
         val state = vm.uiState.value
         assertTrue(state.isEditMode)

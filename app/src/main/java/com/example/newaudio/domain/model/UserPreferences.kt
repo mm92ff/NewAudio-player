@@ -12,6 +12,7 @@ data class UserPreferences(
     val isAutoPlayOnStart: Boolean,
     val isAutoPlayOnBluetooth: Boolean,
     val musicFolderPath: String,
+    val videoFolderPath: String,
     val miniPlayerProgressBarHeight: Float,
     val fullScreenPlayerProgressBarHeight: Float,
     val oneHandedMode: Boolean,
@@ -24,7 +25,13 @@ data class UserPreferences(
     val transparentListItems: Boolean,
     val settingsCardTransparent: Boolean,
     val settingsCardBorderWidth: Float,
-    val settingsCardBorderColor: String
+    val settingsCardBorderColor: String,
+    val resumeSessionOnModeSwitch: Boolean = false,
+    val showVideoPreviewItems: Boolean = false,
+    val videoDisplayMode: VideoDisplayMode = VideoDisplayMode.LIST,
+    val videoGalleryColumns: Int = 3,
+    val showVideoNamesInGallery: Boolean = false,
+    val videoMarkersEnabled: Boolean = false
 ) {
     enum class Theme {
         SYSTEM, LIGHT, DARK
@@ -32,6 +39,14 @@ data class UserPreferences(
 
     enum class RepeatMode {
         NONE, ONE, ALL
+    }
+
+    enum class VideoDisplayMode {
+        LIST,
+        PREVIEW_LIST,
+        GALLERY_SQUARE,
+        GALLERY_ADAPTIVE,
+        GALLERY_FILLED
     }
 
     companion object {
@@ -44,6 +59,7 @@ data class UserPreferences(
             isAutoPlayOnStart = false,
             isAutoPlayOnBluetooth = false,
             musicFolderPath = "",
+            videoFolderPath = "",
             miniPlayerProgressBarHeight = 30f,
             fullScreenPlayerProgressBarHeight = 30f,
             oneHandedMode = false,
@@ -56,7 +72,13 @@ data class UserPreferences(
             transparentListItems = false,
             settingsCardTransparent = false,
             settingsCardBorderWidth = 0f,
-            settingsCardBorderColor = "#9E9E9E"
+            settingsCardBorderColor = "#9E9E9E",
+            resumeSessionOnModeSwitch = false,
+            showVideoPreviewItems = false,
+            videoDisplayMode = VideoDisplayMode.LIST,
+            videoGalleryColumns = 3,
+            showVideoNamesInGallery = false,
+            videoMarkersEnabled = false
         )
     }
 }

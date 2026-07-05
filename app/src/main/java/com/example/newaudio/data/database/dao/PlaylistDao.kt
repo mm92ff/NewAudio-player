@@ -10,6 +10,7 @@ import com.example.newaudio.data.database.PlaylistSongEntity
 import com.example.newaudio.data.database.SongEntity
 import com.example.newaudio.domain.model.Song
 import kotlinx.coroutines.flow.Flow
+import java.io.File
 
 data class PlaylistSongResult(
     val path: String,
@@ -24,7 +25,7 @@ data class PlaylistSongResult(
         return Song(
             path = path,
             contentUri = contentUri,
-            title = title,
+            title = title.takeIf { it.isNotBlank() } ?: File(path).nameWithoutExtension.ifBlank { "Unknown Title" },
             artist = artist,
             duration = duration,
             albumArtPath = albumArtPath

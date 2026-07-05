@@ -16,7 +16,8 @@ internal class FileBrowserClipboardController(
     private val scope: CoroutineScope,
     private val ioDispatcher: CoroutineDispatcher,
     private val copyMultipleFilesUseCase: CopyMultipleFilesUseCase, // NEW
-    private val moveMultipleFilesUseCase: MoveMultipleFilesUseCase  // NEW
+    private val moveMultipleFilesUseCase: MoveMultipleFilesUseCase,  // NEW
+    private val onClipboardOperationCompleted: suspend () -> Unit
 ) {
 
     fun onCopyClick(files: List<FileItem>) {
@@ -57,6 +58,7 @@ internal class FileBrowserClipboardController(
             }
 
             if (success) {
+                onClipboardOperationCompleted()
                 uiState.update { it.copy(clipboardState = ClipboardState.Empty, isLoading = false) }
             } else {
                 uiState.update { it.copy(isLoading = false, errorRes = UiText.StringResource(R.string.error_loading)) }

@@ -7,4 +7,6 @@ interface IMediaScannerRepository {
     
     suspend fun scanDirectory(rootPath: String)
     suspend fun scanSingleFile(path: String)
+    suspend fun scanVideoDirectory(rootPath: String)
+    suspend fun scanSingleVideoFile(path: String)
 }

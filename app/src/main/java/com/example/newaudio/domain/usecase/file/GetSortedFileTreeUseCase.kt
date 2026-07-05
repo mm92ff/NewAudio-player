@@ -3,9 +3,13 @@ package com.example.newaudio.domain.usecase.file
 import com.example.newaudio.data.database.DirectSubFolderSongCount
 import com.example.newaudio.data.database.SongDao
 import com.example.newaudio.data.database.SongMinimal
+import com.example.newaudio.data.database.VideoDao
+import com.example.newaudio.data.database.VideoMinimal
 import com.example.newaudio.di.IoDispatcher
 import com.example.newaudio.domain.model.FileItem
+import com.example.newaudio.domain.model.MediaBrowserMode
 import com.example.newaudio.domain.model.Song
+import com.example.newaudio.domain.model.Video
 import com.example.newaudio.domain.repository.IFolderOrderRepository
 import com.example.newaudio.domain.usecase.settings.GetUserSettingsUseCase
 import kotlinx.coroutines.CoroutineDispatcher
@@ -15,6 +19,7 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
@@ -24,7 +29,9 @@ import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.onStart
 import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.flow.update
 import timber.log.Timber
+import java.io.File
 import java.util.Collections
 import java.util.LinkedHashMap
 import javax.inject.Inject
@@ -34,6 +41,7 @@ import javax.inject.Singleton
 @Singleton
 class GetSortedFileTreeUseCase @Inject constructor(
     private val songDao: SongDao,
+    private val videoDao: VideoDao,
     private val folderOrderRepository: IFolderOrderRepository,
     private val getUserSettingsUseCase: GetUserSettingsUseCase,
     @IoDispatcher private val dispatcher: CoroutineDispatcher,
@@ -41,7 +49,7 @@ class GetSortedFileTreeUseCase @Inject constructor(
 
     private data class FolderInfo(
         val path: String,
-        val songCount: Int?
+        val mediaCount: Int?
     )
 
     private class LruCache<K, V>(private val maxSize: Int) :
@@ -53,31 +61,43 @@ class GetSortedFileTreeUseCase @Inject constructor(
 
     private val cacheScope = CoroutineScope(SupervisorJob() + dispatcher)
     private val cache = Collections.synchronizedMap(LruCache<String, StateFlow<List<FileItem>>>(50))
+    private val refreshSignals = Collections.synchronizedMap(mutableMapOf<String, MutableStateFlow<Int>>())
 
-    fun peekCached(path: String): List<FileItem>? =
-        cache[normalize(path)]?.value
+    fun peekCached(path: String, mode: MediaBrowserMode = MediaBrowserMode.MUSIC): List<FileItem>? =
+        cache[cacheKey(path, mode)]?.value
 
-    operator fun invoke(path: String): Flow<List<FileItem>> {
+    fun invalidate(path: String, mode: MediaBrowserMode = MediaBrowserMode.MUSIC) {
+        val key = cacheKey(path, mode)
+        refreshSignalFor(key).update { it + 1 }
+    }
+
+    operator fun invoke(
+        path: String,
+        mode: MediaBrowserMode = MediaBrowserMode.MUSIC
+    ): Flow<List<FileItem>> {
         val targetPath = normalize(path)
+        val key = cacheKey(targetPath, mode)
 
-        Timber.tag(TAG).d("invoke(): %s", targetPath)
+        Timber.tag(TAG).d("invoke(): %s mode=%s", targetPath, mode)
 
         return synchronized(cache) {
-            cache[targetPath] ?: run {
-                Timber.tag(TAG).d("cache miss -> building shared flow for: $targetPath")
-                buildFlow(targetPath)
+            cache[key] ?: run {
+                Timber.tag(TAG).d("cache miss -> building shared flow for: $key")
+                buildFlow(targetPath, mode, refreshSignalFor(key))
                     .stateIn(
                         scope = cacheScope,
                         started = SharingStarted.WhileSubscribed(stopTimeoutMillis = 30_000),
                         initialValue = emptyList(),
-                    ).also { cache[targetPath] = it }
+                    ).also { cache[key] = it }
             }
         }
     }
 
-    private fun buildFlow(targetPath: String): Flow<List<FileItem>> {
-        val songsFlow: Flow<List<SongMinimal>> = songDao.observeSongsInFolderMinimal(targetPath)
-
+    private fun buildFlow(
+        targetPath: String,
+        mode: MediaBrowserMode,
+        refreshSignal: StateFlow<Int>
+    ): Flow<List<FileItem>> {
         val orderMapFlow: Flow<Map<String, Int>?> =
             folderOrderRepository.observeFolderOrder(targetPath)
                 .distinctUntilChanged()
@@ -103,79 +123,56 @@ class GetSortedFileTreeUseCase @Inject constructor(
             .flatMapLatest { settings ->
                 val subFolderInfoFlow: Flow<List<FolderInfo>> =
                     if (settings.showFolderSongCount) {
-                        // Recursive count
-                        songDao.observeAllSubFolderSongCounts(targetPath)
-                            .map { list: List<DirectSubFolderSongCount> ->
-                                val aggregatedCounts = HashMap<String, Int>()
-
-                                for (item in list) {
-                                    if (!item.path.startsWith(targetPath)) continue
-
-                                    val relativePath = item.path.removePrefix(targetPath).trimStart('/')
-                                    if (relativePath.isEmpty()) continue
-
-                                    val directChildName = relativePath.substringBefore('/')
-
-                                    // FIX: Instead of getOrDefault (API 24+) use Kotlin standard (API 1+)
-                                    val currentCount = aggregatedCounts[directChildName] ?: 0
-                                    aggregatedCounts[directChildName] = currentCount + item.songCount
+                        when (mode) {
+                            MediaBrowserMode.MUSIC -> songDao.observeAllSubFolderSongCounts(targetPath)
+                                .map { list: List<DirectSubFolderSongCount> ->
+                                    aggregateFolderCounts(targetPath, list) { it.path to it.songCount }
                                 }
-
-                                aggregatedCounts.map { (name, count) ->
-                                    val fullPath = if (targetPath.endsWith('/')) "$targetPath$name" else "$targetPath/$name"
-                                    FolderInfo(path = fullPath, songCount = count)
+                            MediaBrowserMode.VIDEO -> videoDao.observeAllSubFolderVideoCounts(targetPath)
+                                .map { list ->
+                                    aggregateFolderCounts(targetPath, list) { it.path to it.videoCount }
                                 }
-                            }
+                        }
                     } else {
-                        songDao.observeSubFolders(targetPath)
-                            .map { paths -> paths.map { FolderInfo(path = it, songCount = null) } }
+                        when (mode) {
+                            MediaBrowserMode.MUSIC -> songDao.observeSubFolders(targetPath)
+                            MediaBrowserMode.VIDEO -> videoDao.observeSubFolders(targetPath)
+                        }.map { paths -> paths.map { FolderInfo(path = it, mediaCount = null) } }
                     }
+
+                val fileSystemFolderInfoFlow: Flow<List<FolderInfo>> =
+                    refreshSignal.map { readDirectFileSystemFolders(targetPath) }
+
+                val mediaItemsFlow: Flow<List<FileItem>> = when (mode) {
+                    MediaBrowserMode.MUSIC -> songDao.observeSongsInFolderMinimal(targetPath)
+                        .map { songs -> songs.mapNotNull { it.toAudioFile(settings.showHiddenFiles) } }
+                    MediaBrowserMode.VIDEO -> videoDao.observeVideosInFolderMinimal(targetPath)
+                        .map { videos -> videos.mapNotNull { it.toVideoFile(settings.showHiddenFiles) } }
+                }
 
                 combine(
-                    songsFlow,
+                    mediaItemsFlow,
                     subFolderInfoFlow,
+                    fileSystemFolderInfoFlow,
                     orderMapFlow
-                ) { songs, subFoldersInfo, orderMap ->
-                    Timber.tag(TAG).d("Re-computing file list for $targetPath")
+                ) { mediaItems, subFoldersInfo, fileSystemFoldersInfo, orderMap ->
+                    Timber.tag(TAG).d("Re-computing file list for $targetPath mode=$mode")
 
-                    val out = ArrayList<FileItem>(subFoldersInfo.size + songs.size)
+                    val mergedFoldersInfo = mergeFolderInfo(
+                        databaseFolders = subFoldersInfo,
+                        fileSystemFolders = fileSystemFoldersInfo,
+                        showFolderSongCount = settings.showFolderSongCount
+                    )
+                    val out = ArrayList<FileItem>(mergedFoldersInfo.size + mediaItems.size)
 
                     // Folders
-                    for (info in subFoldersInfo) {
+                    for (info in mergedFoldersInfo) {
                         val name = info.path.substringAfterLast('/')
                         if (!settings.showHiddenFiles && name.startsWith(".")) continue
-                        out.add(FileItem.Folder(name = name, path = info.path, songCount = info.songCount))
+                        out.add(FileItem.Folder(name = name, path = info.path, mediaCount = info.mediaCount))
                     }
 
-                    // Audio
-                    for (s in songs) {
-                        val name = s.filename
-                        if (!settings.showHiddenFiles && name.startsWith(".")) continue
-
-                        val songId = try {
-                            s.contentUri.substringAfterLast('/').toLong()
-                        } catch (_: NumberFormatException) {
-                            0L
-                        }
-
-                        val song = Song(
-                            path = s.path,
-                            contentUri = s.contentUri,
-                            title = s.title,
-                            artist = s.artist,
-                            duration = s.duration,
-                            albumArtPath = s.albumArtPath
-                        )
-
-                        out.add(
-                            FileItem.AudioFile(
-                                name = name,
-                                path = s.path,
-                                songId = songId,
-                                song = song
-                            )
-                        )
-                    }
+                    out.addAll(mediaItems)
 
                     // Sort in-place
                     if (orderMap == null) {
@@ -210,5 +207,116 @@ class GetSortedFileTreeUseCase @Inject constructor(
         private const val TAG = "GetSortedFileTree"
     }
 
-    private fun normalize(path: String): String = path.trimEnd('/')
+    private fun normalize(path: String): String = path.toBrowserPath().trimEnd('/')
+
+    private fun cacheKey(path: String, mode: MediaBrowserMode): String = "${mode.name}:${normalize(path)}"
+
+    private fun refreshSignalFor(key: String): MutableStateFlow<Int> =
+        synchronized(refreshSignals) {
+            refreshSignals.getOrPut(key) { MutableStateFlow(0) }
+        }
+
+    private fun readDirectFileSystemFolders(targetPath: String): List<FolderInfo> {
+        val children = runCatching {
+            File(targetPath).listFiles { file -> file.isDirectory }
+        }.getOrNull() ?: return emptyList()
+
+        return children.map { child ->
+            FolderInfo(path = normalize(child.path), mediaCount = null)
+        }
+    }
+
+    private fun mergeFolderInfo(
+        databaseFolders: List<FolderInfo>,
+        fileSystemFolders: List<FolderInfo>,
+        showFolderSongCount: Boolean
+    ): List<FolderInfo> {
+        val foldersByPath = LinkedHashMap<String, FolderInfo>(databaseFolders.size + fileSystemFolders.size)
+
+        fileSystemFolders.forEach { info ->
+            foldersByPath[normalize(info.path)] = FolderInfo(path = normalize(info.path), mediaCount = null)
+        }
+
+        databaseFolders.forEach { info ->
+            val normalizedPath = normalize(info.path)
+            foldersByPath[normalizedPath] = FolderInfo(
+                path = normalizedPath,
+                mediaCount = if (showFolderSongCount) info.mediaCount else null
+            )
+        }
+
+        return foldersByPath.values.toList()
+    }
+
+    private fun String.toBrowserPath(): String = replace('\\', '/')
+
+    private fun <T> aggregateFolderCounts(
+        targetPath: String,
+        list: List<T>,
+        mapper: (T) -> Pair<String, Int>
+    ): List<FolderInfo> {
+        val aggregatedCounts = HashMap<String, Int>()
+
+        for (item in list) {
+            val (path, count) = mapper(item)
+            if (!path.startsWith(targetPath)) continue
+
+            val relativePath = path.removePrefix(targetPath).trimStart('/')
+            if (relativePath.isEmpty()) continue
+
+            val directChildName = relativePath.substringBefore('/')
+            val currentCount = aggregatedCounts[directChildName] ?: 0
+            aggregatedCounts[directChildName] = currentCount + count
+        }
+
+        return aggregatedCounts.map { (name, count) ->
+            val fullPath = if (targetPath.endsWith('/')) "$targetPath$name" else "$targetPath/$name"
+            FolderInfo(path = fullPath, mediaCount = count)
+        }
+    }
+
+    private fun SongMinimal.toAudioFile(showHiddenFiles: Boolean): FileItem.AudioFile? {
+        val name = filename
+        if (!showHiddenFiles && name.startsWith(".")) return null
+
+        val songId = contentUri.substringAfterLast('/').toLongOrNull() ?: 0L
+        val song = Song(
+            path = path,
+            contentUri = contentUri,
+            title = title.takeIf { it.isNotBlank() } ?: File(path).nameWithoutExtension.ifBlank { name },
+            artist = artist,
+            duration = duration,
+            albumArtPath = albumArtPath
+        )
+
+        return FileItem.AudioFile(
+            name = name,
+            path = path,
+            songId = songId,
+            song = song
+        )
+    }
+
+    private fun VideoMinimal.toVideoFile(showHiddenFiles: Boolean): FileItem.VideoFile? {
+        val name = filename
+        if (!showHiddenFiles && name.startsWith(".")) return null
+
+        val videoId = contentUri.substringAfterLast('/').toLongOrNull() ?: 0L
+        val video = Video(
+            path = path,
+            contentUri = contentUri,
+            title = title.takeIf { it.isNotBlank() } ?: File(path).nameWithoutExtension.ifBlank { name },
+            duration = duration,
+            thumbnailUri = thumbnailUri,
+            width = width,
+            height = height
+        )
+
+        return FileItem.VideoFile(
+            name = name,
+            path = path,
+            videoId = videoId,
+            video = video
+        )
+    }
 }

@@ -13,6 +13,7 @@ import com.example.newaudio.domain.repository.IPlaylistRepository
 import com.example.newaudio.domain.usecase.settings.GetUserSettingsUseCase
 import java.io.File
 import com.example.newaudio.domain.usecase.file.SetMusicFolderUseCase
+import com.example.newaudio.domain.usecase.file.SetVideoFolderUseCase
 import com.example.newaudio.domain.usecase.settings.ResetDatabaseUseCase
 import com.example.newaudio.domain.usecase.settings.SetAutoPlayOnBluetoothUseCase
 import com.example.newaudio.domain.usecase.settings.SetFullScreenPlayerProgressBarHeightUseCase
@@ -20,6 +21,12 @@ import com.example.newaudio.domain.usecase.settings.SetMiniPlayerProgressBarHeig
 import com.example.newaudio.domain.usecase.settings.SetOneHandedModeUseCase
 import com.example.newaudio.domain.usecase.settings.SetPlayOnFolderClickUseCase
 import com.example.newaudio.domain.usecase.settings.SetPrimaryColorUseCase
+import com.example.newaudio.domain.usecase.settings.SetResumeSessionOnModeSwitchUseCase
+import com.example.newaudio.domain.usecase.settings.SetShowVideoNamesInGalleryUseCase
+import com.example.newaudio.domain.usecase.settings.SetShowVideoPreviewItemsUseCase
+import com.example.newaudio.domain.usecase.settings.SetVideoDisplayModeUseCase
+import com.example.newaudio.domain.usecase.settings.SetVideoGalleryColumnsUseCase
+import com.example.newaudio.domain.usecase.settings.SetVideoMarkersEnabledUseCase
 import com.example.newaudio.domain.usecase.settings.SetBackgroundTintFractionUseCase
 import com.example.newaudio.domain.usecase.settings.SetBackgroundGradientEnabledUseCase
 import com.example.newaudio.domain.usecase.settings.SetTransparentListItemsUseCase
@@ -53,6 +60,7 @@ class SettingsViewModel @Inject constructor(
     private val setThemeUseCase: SetThemeUseCase,
     private val setPrimaryColorUseCase: SetPrimaryColorUseCase,
     private val setMusicFolderUseCase: SetMusicFolderUseCase,
+    private val setVideoFolderUseCase: SetVideoFolderUseCase,
     private val setMiniPlayerProgressBarHeightUseCase: SetMiniPlayerProgressBarHeightUseCase,
     private val setFullScreenPlayerProgressBarHeightUseCase: SetFullScreenPlayerProgressBarHeightUseCase,
     private val setAutoPlayOnBluetoothUseCase: SetAutoPlayOnBluetoothUseCase,
@@ -60,6 +68,12 @@ class SettingsViewModel @Inject constructor(
     private val setUseMarqueeUseCase: SetUseMarqueeUseCase,
     private val setShowHiddenFilesUseCase: SetShowHiddenFilesUseCase,
     private val setPlayOnFolderClickUseCase: SetPlayOnFolderClickUseCase,
+    private val setResumeSessionOnModeSwitchUseCase: SetResumeSessionOnModeSwitchUseCase,
+    private val setShowVideoPreviewItemsUseCase: SetShowVideoPreviewItemsUseCase,
+    private val setShowVideoNamesInGalleryUseCase: SetShowVideoNamesInGalleryUseCase,
+    private val setVideoMarkersEnabledUseCase: SetVideoMarkersEnabledUseCase,
+    private val setVideoDisplayModeUseCase: SetVideoDisplayModeUseCase,
+    private val setVideoGalleryColumnsUseCase: SetVideoGalleryColumnsUseCase,
     private val setShowFolderSongCountUseCase: SetShowFolderSongCountUseCase,
     private val setBackgroundTintFractionUseCase: SetBackgroundTintFractionUseCase,
     private val setBackgroundGradientEnabledUseCase: SetBackgroundGradientEnabledUseCase,
@@ -107,6 +121,10 @@ class SettingsViewModel @Inject constructor(
         setMusicFolderUseCase(path)
     }
 
+    fun onVideoFolderChange(path: String) = safeLaunch {
+        setVideoFolderUseCase(path)
+    }
+
     fun onMiniPlayerProgressBarHeightChange(height: Float) = safeLaunch {
         setMiniPlayerProgressBarHeightUseCase(height)
     }
@@ -133,6 +151,30 @@ class SettingsViewModel @Inject constructor(
 
     fun onPlayOnFolderClickChange(isEnabled: Boolean) = safeLaunch {
         setPlayOnFolderClickUseCase(isEnabled)
+    }
+
+    fun onResumeSessionOnModeSwitchChange(isEnabled: Boolean) = safeLaunch {
+        setResumeSessionOnModeSwitchUseCase(isEnabled)
+    }
+
+    fun onShowVideoPreviewItemsChange(isEnabled: Boolean) = safeLaunch {
+        setShowVideoPreviewItemsUseCase(isEnabled)
+    }
+
+    fun onShowVideoNamesInGalleryChange(isEnabled: Boolean) = safeLaunch {
+        setShowVideoNamesInGalleryUseCase(isEnabled)
+    }
+
+    fun onVideoMarkersEnabledChange(isEnabled: Boolean) = safeLaunch {
+        setVideoMarkersEnabledUseCase(isEnabled)
+    }
+
+    fun onVideoDisplayModeChange(mode: UserPreferences.VideoDisplayMode) = safeLaunch {
+        setVideoDisplayModeUseCase(mode)
+    }
+
+    fun onVideoGalleryColumnsChange(columns: Int) = safeLaunch {
+        setVideoGalleryColumnsUseCase(columns)
     }
 
     fun onShowFolderSongCountChange(isEnabled: Boolean) = safeLaunch {

@@ -46,7 +46,7 @@ interface VideoMarkerDao {
         """
         DELETE FROM video_markers
         WHERE videoPath = :folderPath
-           OR videoPath LIKE :folderPath || '/%'
+           OR substr(videoPath, 1, length(:folderPath) + 1) = :folderPath || '/'
         """
     )
     suspend fun deleteByFolder(folderPath: String)

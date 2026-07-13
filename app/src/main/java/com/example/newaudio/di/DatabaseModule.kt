@@ -5,6 +5,8 @@ import androidx.room.Room
 import com.example.newaudio.BuildConfig
 import com.example.newaudio.data.database.AppDatabase
 import com.example.newaudio.data.database.AppDatabaseMigrations
+import com.example.newaudio.data.database.DatabaseTransactionRunner
+import com.example.newaudio.data.database.RoomDatabaseTransactionRunner
 import com.example.newaudio.data.database.SongDao
 import com.example.newaudio.data.database.VideoDao
 import com.example.newaudio.data.database.dao.PlaylistDao
@@ -25,6 +27,12 @@ object DatabaseModule {
 
     @Provides
     @Singleton
+    fun provideDatabaseTransactionRunner(
+        runner: RoomDatabaseTransactionRunner
+    ): DatabaseTransactionRunner = runner
+
+    @Provides
+    @Singleton
     fun provideAppDatabase(@ApplicationContext context: Context): AppDatabase {
         val builder = Room.databaseBuilder(
             context,
@@ -38,7 +46,8 @@ object DatabaseModule {
             .addMigrations(
                 AppDatabaseMigrations.MIGRATION_3_4,
                 AppDatabaseMigrations.MIGRATION_4_5,
-                AppDatabaseMigrations.MIGRATION_5_6
+                AppDatabaseMigrations.MIGRATION_5_6,
+                AppDatabaseMigrations.MIGRATION_6_7
             )
 
         if (BuildConfig.DEBUG) {

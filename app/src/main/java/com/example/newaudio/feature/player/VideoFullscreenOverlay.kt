@@ -55,12 +55,18 @@ import androidx.compose.ui.input.pointer.PointerInputScope
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.CustomAccessibilityAction
+import androidx.compose.ui.semantics.customActions
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.WindowInsetsControllerCompat
 import com.example.newaudio.domain.model.VideoMarker
+import com.example.newaudio.R
 import androidx.media3.common.Player
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.common.VideoSize
@@ -480,7 +486,7 @@ private fun VideoTimelineOverlay(
                     ) {
                         Icon(
                             imageVector = if (isPlaying) Icons.Default.Pause else Icons.Default.PlayArrow,
-                            contentDescription = null,
+                            contentDescription = stringResource(if (isPlaying) R.string.video_pause else R.string.video_play),
                             tint = Color.White
                         )
                     }
@@ -498,22 +504,22 @@ private fun VideoTimelineOverlay(
                         style = MaterialTheme.typography.bodyMedium,
                         modifier = Modifier.weight(1f)
                     )
-                    IconButton(onClick = onJumpToPreviousMarker, modifier = Modifier.size(42.dp)) {
-                        Icon(Icons.AutoMirrored.Filled.NavigateBefore, null, tint = Color.White)
+                    IconButton(onClick = onJumpToPreviousMarker, modifier = Modifier.size(48.dp)) {
+                        Icon(Icons.AutoMirrored.Filled.NavigateBefore, stringResource(R.string.video_previous_marker), tint = Color.White)
                     }
-                    IconButton(onClick = onAddMarker, modifier = Modifier.size(42.dp)) {
-                        Icon(Icons.Default.Add, null, tint = Color.White)
+                    IconButton(onClick = onAddMarker, modifier = Modifier.size(48.dp)) {
+                        Icon(Icons.Default.Add, stringResource(R.string.video_add_marker), tint = Color.White)
                     }
-                    IconButton(onClick = onDeleteNearestMarker, modifier = Modifier.size(42.dp)) {
-                        Icon(Icons.Default.Delete, null, tint = Color.White)
+                    IconButton(onClick = onDeleteNearestMarker, modifier = Modifier.size(48.dp)) {
+                        Icon(Icons.Default.Delete, stringResource(R.string.video_delete_marker), tint = Color.White)
                     }
-                    IconButton(onClick = onJumpToNextMarker, modifier = Modifier.size(42.dp)) {
-                        Icon(Icons.AutoMirrored.Filled.NavigateNext, null, tint = Color.White)
+                    IconButton(onClick = onJumpToNextMarker, modifier = Modifier.size(48.dp)) {
+                        Icon(Icons.AutoMirrored.Filled.NavigateNext, stringResource(R.string.video_next_marker), tint = Color.White)
                     }
                     IconButton(onClick = onPlayPause, modifier = Modifier.size(48.dp)) {
                         Icon(
                             imageVector = if (isPlaying) Icons.Default.Pause else Icons.Default.PlayArrow,
-                            contentDescription = null,
+                            contentDescription = stringResource(if (isPlaying) R.string.video_pause else R.string.video_play),
                             tint = Color.White
                         )
                     }
@@ -531,7 +537,7 @@ private fun VideoTimelineOverlay(
 }
 
 @Composable
-private fun VideoMarkerTicks(
+internal fun VideoMarkerTicks(
     markers: ImmutableList<VideoMarker>,
     durationMs: Long,
     onMoveMarker: (Long, Long) -> Unit,
@@ -549,13 +555,34 @@ private fun VideoMarkerTicks(
             var dragPositionMs by remember(marker.id, marker.positionMs) {
                 mutableLongStateOf(marker.positionMs)
             }
+            val markerDescription = stringResource(R.string.video_marker_at, marker.positionMs.formatPlaybackTime())
+            val moveEarlierDescription = stringResource(R.string.video_marker_move_earlier)
+            val moveLaterDescription = stringResource(R.string.video_marker_move_later)
 
             Box(
                 modifier = Modifier
                     .align(Alignment.CenterStart)
-                    .offset(x = offsetX)
-                    .size(width = 4.dp, height = 28.dp)
-                    .background(MaterialTheme.colorScheme.primary)
+                    .offset(x = offsetX - 22.dp)
+                    .size(48.dp)
+                    .semantics {
+                        contentDescription = markerDescription
+                        customActions = listOf(
+                            CustomAccessibilityAction(moveEarlierDescription) {
+                                onMoveMarker(
+                                    marker.id,
+                                    (marker.positionMs - MARKER_ACCESSIBILITY_STEP_MS).coerceAtLeast(0L)
+                                )
+                                true
+                            },
+                            CustomAccessibilityAction(moveLaterDescription) {
+                                onMoveMarker(
+                                    marker.id,
+                                    (marker.positionMs + MARKER_ACCESSIBILITY_STEP_MS).coerceAtMost(durationMs)
+                                )
+                                true
+                            }
+                        )
+                    }
                     .pointerInput(marker.id, durationMs, widthPx) {
                         detectDragGestures(
                             onDragStart = { dragPositionMs = marker.positionMs },
@@ -572,10 +599,19 @@ private fun VideoMarkerTicks(
                             }
                         )
                     }
-            )
+            ) {
+                Box(
+                    modifier = Modifier
+                        .align(Alignment.Center)
+                        .size(width = 4.dp, height = 28.dp)
+                        .background(MaterialTheme.colorScheme.primary)
+                )
+            }
         }
     }
 }
+
+private const val MARKER_ACCESSIBILITY_STEP_MS = 5_000L
 
 @Composable
 private fun FullscreenGestureFeedbackView(

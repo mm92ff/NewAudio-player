@@ -14,11 +14,14 @@ import io.mockk.every
 import io.mockk.mockk
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.awaitCancellation
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.resetMain
+import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.test.setMain
 import org.junit.After
@@ -174,6 +177,29 @@ class FileBrowserViewModelTest {
     }
 
     @Test
+    fun `cancelled refresh cannot clear newer refresh indicator`() = runTest {
+        val secondRefreshCanFinish = CompletableDeferred<Unit>()
+        var calls = 0
+        coEvery { syncCurrentFolderUseCase(any(), any()) } coAnswers {
+            calls++
+            if (calls == 1) awaitCancellation() else secondRefreshCanFinish.await()
+        }
+        val vm = buildViewModel()
+        backgroundScope.launch { vm.uiState.collect {} }
+        advanceUntilIdle()
+
+        vm.onRefresh()
+        runCurrent()
+        vm.onRefresh()
+        runCurrent()
+
+        assertTrue(vm.uiState.value.isRefreshing)
+        secondRefreshCanFinish.complete(Unit)
+        advanceUntilIdle()
+        assertFalse(vm.uiState.value.isRefreshing)
+    }
+
+    @Test
     fun `deleting active inline video removes it from list and hides inline player`() = runTest {
         val activeVideo = videoFile(
             path = "/sdcard/Movies/fight.mp4",
@@ -183,7 +209,7 @@ class FileBrowserViewModelTest {
             path = "/sdcard/Movies/next.mp4",
             name = "next.mp4"
         )
-        coEvery { deleteFileUseCase(any(), activeVideo) } returns true
+        coEvery { deleteFileUseCase(any(), activeVideo) } returns FileOperationResult.success(1)
 
         val vm = buildViewModel(listOf(activeVideo, otherVideo))
         backgroundScope.launch { vm.uiState.collect {} }
@@ -460,7 +486,7 @@ class FileBrowserViewModelTest {
             path = "/sdcard/Movies/source/fight.mp4",
             name = "fight.mp4"
         )
-        coEvery { copyMultipleFilesUseCase(any(), any()) } returns true
+        coEvery { copyMultipleFilesUseCase(any(), any()) } returns com.example.newaudio.domain.usecase.file.FileOperationResult.success(1)
 
         val vm = buildViewModel(listOf(video))
         backgroundScope.launch { vm.uiState.collect {} }
@@ -481,7 +507,7 @@ class FileBrowserViewModelTest {
             path = "/sdcard/Music/source/fight.mp4",
             name = "fight.mp4"
         )
-        coEvery { moveMultipleFilesUseCase(any(), any(), any()) } returns true
+        coEvery { moveMultipleFilesUseCase(any(), any(), any()) } returns com.example.newaudio.domain.usecase.file.FileOperationResult.success(1)
 
         val vm = buildViewModel(listOf(video))
         backgroundScope.launch { vm.uiState.collect {} }
@@ -502,7 +528,10 @@ class FileBrowserViewModelTest {
             path = "/sdcard/Movies/source/fight.mp4",
             name = "fight.mp4"
         )
-        coEvery { copyMultipleFilesUseCase(any(), any()) } returns false
+        coEvery { copyMultipleFilesUseCase(any(), any()) } returns com.example.newaudio.domain.usecase.file.FileOperationResult.failure(
+            "/failed",
+            com.example.newaudio.domain.usecase.file.FileOperationFailureReason.COPY_FAILED
+        )
 
         val vm = buildViewModel(listOf(video))
         backgroundScope.launch { vm.uiState.collect {} }

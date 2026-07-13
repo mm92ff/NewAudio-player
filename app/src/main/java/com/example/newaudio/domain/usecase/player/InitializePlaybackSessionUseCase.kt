@@ -6,6 +6,7 @@ import com.example.newaudio.domain.usecase.media.ScanLibraryIfEmptyUseCase
 import kotlinx.coroutines.flow.first
 import timber.log.Timber
 import javax.inject.Inject
+import kotlinx.coroutines.CancellationException
 
 /**
  * One-shot orchestration:
@@ -24,16 +25,25 @@ class InitializePlaybackSessionUseCase @Inject constructor(
         mediaRepository.initialize()
 
         runCatching { applyUserPreferencesUseCase() }
-            .onFailure { Timber.tag(TAG).w(it, "Applying user preferences failed") }
+            .onFailure {
+                if (it is CancellationException) throw it
+                Timber.tag(TAG).w(it, "Applying user preferences failed")
+            }
 
         runCatching { scanLibraryIfEmptyUseCase() }
-            .onFailure { Timber.tag(TAG).w(it, "Initial scan failed") }
+            .onFailure {
+                if (it is CancellationException) throw it
+                Timber.tag(TAG).w(it, "Initial scan failed")
+            }
 
         val state = mediaRepository.getPlaybackState().first()
         val playerHasLoadedMedia = state.player?.currentMediaItem != null
         if (state.currentSong == null && state.currentVideo == null && !playerHasLoadedMedia) {
             runCatching { restorePlaybackStateUseCase() }
-                .onFailure { Timber.tag(TAG).w(it, "Restore playback failed") }
+                .onFailure {
+                    if (it is CancellationException) throw it
+                    Timber.tag(TAG).w(it, "Restore playback failed")
+                }
         }
     }
 

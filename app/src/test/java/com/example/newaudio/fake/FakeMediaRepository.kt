@@ -32,6 +32,7 @@ class FakeMediaRepository : IMediaRepository {
     var setRepeatModeCalled: UserPreferences.RepeatMode? = null
     var clearDatabaseCalled = false
     var initializeCalled = false
+    var clearPlayerErrorCalled = 0
 
     // Configurable stubs
     var stubbedLibrarySongCount = 0
@@ -133,6 +134,7 @@ class FakeMediaRepository : IMediaRepository {
     }
 
     override suspend fun clearPlayerError() {
+        clearPlayerErrorCalled++
         _playbackState.value = _playbackState.value.copy(playerError = null)
     }
 

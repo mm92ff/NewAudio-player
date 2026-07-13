@@ -1,5 +1,6 @@
 package com.example.newaudio.feature.settings
 
+import com.example.newaudio.R
 import com.example.newaudio.domain.model.UserPreferences
 import com.example.newaudio.domain.usecase.file.SetMusicFolderUseCase
 import com.example.newaudio.domain.usecase.file.SetVideoFolderUseCase
@@ -33,8 +34,12 @@ import com.example.newaudio.fake.FakeMediaRepository
 import com.example.newaudio.fake.FakeMediaScannerRepository
 import com.example.newaudio.fake.FakePlaylistRepository
 import com.example.newaudio.fake.FakeSettingsRepository
+import com.example.newaudio.util.UiText
+import io.mockk.coEvery
+import io.mockk.mockk
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.async
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.StandardTestDispatcher
@@ -62,7 +67,10 @@ class BackupExportImportTest {
     private val errorRepo = FakeErrorRepository()
     private val playlistRepo = FakePlaylistRepository()
 
-    private fun buildViewModel() = SettingsViewModel(
+    private fun buildViewModel(
+        restoreUserPreferencesUseCase: RestoreUserPreferencesUseCase =
+            RestoreUserPreferencesUseCase(settingsRepo)
+    ) = SettingsViewModel(
         getUserSettingsUseCase = GetUserSettingsUseCase(settingsRepo),
         setThemeUseCase = SetThemeUseCase(settingsRepo),
         setPrimaryColorUseCase = SetPrimaryColorUseCase(settingsRepo),
@@ -88,7 +96,7 @@ class BackupExportImportTest {
         setSettingsCardTransparentUseCase = SetSettingsCardTransparentUseCase(settingsRepo),
         setSettingsCardBorderWidthUseCase = SetSettingsCardBorderWidthUseCase(settingsRepo),
         setSettingsCardBorderColorUseCase = SetSettingsCardBorderColorUseCase(settingsRepo),
-        restoreUserPreferencesUseCase = RestoreUserPreferencesUseCase(settingsRepo),
+        restoreUserPreferencesUseCase = restoreUserPreferencesUseCase,
         resetDatabaseUseCase = ResetDatabaseUseCase(mediaRepo, settingsRepo, scannerRepo),
         errorRepository = errorRepo,
         playlistRepository = playlistRepo,
@@ -148,6 +156,27 @@ class BackupExportImportTest {
         val afterImport = settingsRepo.userPreferences.first()
         assertEquals(originalPrefs.theme, afterImport.theme)
         assertEquals(originalPrefs.primaryColor, afterImport.primaryColor)
+    }
+
+    @Test
+    fun `settings restore failure reports partial success after playlist import`() = runTest {
+        playlistRepo.importReturnPreferences = UserPreferences.default()
+        val restore = mockk<RestoreUserPreferencesUseCase>()
+        coEvery { restore(any()) } throws IllegalStateException("DataStore unavailable")
+        val vm = buildViewModel(restore)
+        val event = async { vm.events.first() }
+        advanceUntilIdle()
+
+        vm.onImportPlaylists("file://test.json")
+        advanceUntilIdle()
+
+        val message = (event.await() as SettingsEvent.ShowMessage).text
+        assertTrue(message is UiText.PluralResource)
+        assertEquals(
+            R.plurals.import_completed_settings_failed,
+            (message as UiText.PluralResource).resId
+        )
+        assertTrue(errorRepo.logs.any { it.message.contains("settings restore failed") })
     }
 
     // --- Bug-Fix Regression Tests ---

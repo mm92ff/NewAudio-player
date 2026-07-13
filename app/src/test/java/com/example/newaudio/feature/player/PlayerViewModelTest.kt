@@ -28,6 +28,8 @@ import io.mockk.coEvery
 import io.mockk.mockk
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.async
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.advanceUntilIdle
@@ -36,6 +38,8 @@ import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.test.setMain
 import org.junit.After
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNotNull
+import org.junit.Assert.assertNull
 import org.junit.Before
 import org.junit.Test
 
@@ -158,6 +162,31 @@ class PlayerViewModelTest {
         vm.onSeek(45_000f)
         advanceUntilIdle()
         assertEquals(45_000L, mediaRepo.seekToPosition)
+    }
+
+    @Test
+    fun `player error remains until UI acknowledges it`() = runTest {
+        val vm = buildViewModel()
+        advanceUntilIdle()
+        val event = async { vm.errorEvents.first() }
+
+        mediaRepo.setState(
+            IMediaRepository.PlaybackState(
+                isRestoring = false,
+                playerError = IMediaRepository.PlayerError(7, "Decoder failed")
+            )
+        )
+        advanceUntilIdle()
+
+        assertNotNull(event.await())
+        assertNotNull(mediaRepo.playbackState.value.playerError)
+        assertEquals(0, mediaRepo.clearPlayerErrorCalled)
+
+        vm.onPlayerErrorShown()
+        advanceUntilIdle()
+
+        assertEquals(1, mediaRepo.clearPlayerErrorCalled)
+        assertNull(mediaRepo.playbackState.value.playerError)
     }
 
     @Test

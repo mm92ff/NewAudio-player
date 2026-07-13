@@ -223,7 +223,12 @@ class PlaylistViewModel @Inject constructor(
                     playlistRepository.deletePlaylists(selectedPlaylists.toList())
                 }
                 _expandedIds.update { current -> current.removeAll(selectedPlaylists) }
-                _sideEffects.send(PlaylistSideEffect.ShowSnackbar(UiText.StringResource(R.string.playlist_selected_deleted, selectedSongs.size + selectedPlaylists.size)))
+                val deletedCount = selectedSongs.size + selectedPlaylists.size
+                _sideEffects.send(
+                    PlaylistSideEffect.ShowSnackbar(
+                        UiText.PluralResource(R.plurals.playlist_selected_deleted, deletedCount, deletedCount)
+                    )
+                )
                 toggleEditMode()
             } catch (e: Exception) {
                 Timber.e(e, "Error in removeSelected")

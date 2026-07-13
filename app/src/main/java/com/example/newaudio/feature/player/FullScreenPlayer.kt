@@ -13,9 +13,7 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Scaffold
-import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -23,14 +21,10 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.media3.ui.PlayerView
-import com.example.newaudio.R
 import com.example.newaudio.domain.repository.IEqualizerRepository
 import com.example.newaudio.feature.player.composables.PlayerAlbumArt
 import com.example.newaudio.feature.player.composables.PlayerControls
@@ -39,7 +33,6 @@ import com.example.newaudio.feature.player.composables.PlayerTopAppBar
 import com.example.newaudio.feature.player.composables.SongDetails
 import com.example.newaudio.feature.player.composables.SongMetadataDialog
 import com.example.newaudio.ui.theme.Dimens
-import com.example.newaudio.util.UiText
 import kotlinx.coroutines.flow.Flow
 import kotlin.math.min
 
@@ -66,7 +59,6 @@ private fun PlayerSeekBarHost(
 fun FullScreenPlayer(
     uiState: PlayerUiState,                 // ⚠️ arrives WITHOUT currentPosition ticks
     currentPositionFlow: Flow<Long>,         // ✅ ticks only inside the SeekBar
-    errorEvents: Flow<UiText>,
     onBackClicked: () -> Unit,
     onPlayPauseClicked: () -> Unit,
     onSkipPreviousClicked: () -> Unit,
@@ -79,19 +71,9 @@ fun FullScreenPlayer(
     onApplyPreset: (IEqualizerRepository.EqPreset) -> Unit,
     onShowSongMetadata: () -> Unit,
     onDismissSongMetadataDialog: () -> Unit,
-    onErrorShown: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     var showEqualizerSheet by remember { mutableStateOf(false) }
-    var errorMessage by remember { mutableStateOf<String?>(null) }
-    val context = LocalContext.current
-
-    // Handle error events
-    LaunchedEffect(errorEvents) {
-        errorEvents.collect { error ->
-            errorMessage = error.asString(context)
-        }
-    }
 
     if (showEqualizerSheet) {
         ModalBottomSheet(onDismissRequest = { showEqualizerSheet = false }) {
@@ -175,18 +157,6 @@ fun FullScreenPlayer(
 
                         Spacer(modifier = Modifier.height(Dimens.PaddingMedium))
 
-                        errorMessage?.let { message ->
-                            Text(
-                                text = stringResource(R.string.error_prefix, message),
-                                style = MaterialTheme.typography.bodyMedium,
-                                color = MaterialTheme.colorScheme.error,
-                                textAlign = TextAlign.Center,
-                                modifier = Modifier.clickable {
-                                    errorMessage = null
-                                    onErrorShown()
-                                }
-                            )
-                        }
                     }
                 }
             }

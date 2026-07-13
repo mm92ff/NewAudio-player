@@ -10,6 +10,7 @@ import com.example.newaudio.domain.model.LogLevel
 import com.example.newaudio.domain.model.UserPreferences
 import com.example.newaudio.domain.repository.IErrorRepository
 import com.example.newaudio.domain.repository.IPlaylistRepository
+import com.example.newaudio.domain.repository.ImportFailure
 import com.example.newaudio.domain.usecase.settings.GetUserSettingsUseCase
 import java.io.File
 import com.example.newaudio.domain.usecase.file.SetMusicFolderUseCase
@@ -42,6 +43,7 @@ import com.example.newaudio.util.Constants
 import com.example.newaudio.util.UiText
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.CoroutineDispatcher
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
@@ -135,6 +137,12 @@ class SettingsViewModel @Inject constructor(
 
     fun onAutoPlayOnBluetoothChange(isEnabled: Boolean) = safeLaunch {
         setAutoPlayOnBluetoothUseCase(isEnabled)
+    }
+
+    fun onBluetoothPermissionDenied() {
+        _events.trySend(
+            SettingsEvent.ShowMessage(UiText.StringResource(R.string.bluetooth_permission_denied))
+        )
     }
 
     fun onOneHandedModeChange(isEnabled: Boolean) = safeLaunch {
@@ -271,18 +279,59 @@ class SettingsViewModel @Inject constructor(
 
         val result = playlistRepository.importPlaylists(pathForRepo)
 
-        result.restoredPreferences?.let { restoreUserPreferencesUseCase(it) }
+        if (!result.isSuccess) {
+            val message = when (result.failure) {
+                ImportFailure.TOO_LARGE, ImportFailure.LIMIT_EXCEEDED -> R.string.import_failed_too_large
+                ImportFailure.INVALID_FORMAT, ImportFailure.UNSUPPORTED_VERSION -> R.string.import_failed_invalid
+                else -> R.string.import_failed_io
+            }
+            _events.send(SettingsEvent.ShowMessage(UiText.StringResource(message)))
+            return
+        }
+
+        val settingsRestoreFailed = result.restoredPreferences?.let { preferences ->
+            try {
+                restoreUserPreferencesUseCase(preferences)
+                false
+            } catch (error: CancellationException) {
+                throw error
+            } catch (error: Exception) {
+                Timber.tag(TAG).e(error, "Playlists imported, but settings restore failed")
+                errorRepository.log(
+                    LogLevel.ERROR,
+                    TAG,
+                    "Playlist import succeeded but settings restore failed: ${error.message}",
+                    error
+                )
+                true
+            }
+        } ?: false
+
+        if (settingsRestoreFailed) {
+            _events.send(
+                SettingsEvent.ShowMessage(
+                    UiText.PluralResource(
+                        R.plurals.import_completed_settings_failed,
+                        result.playlistsImported,
+                        result.playlistsImported
+                    )
+                )
+            )
+            return
+        }
 
         if (result.songsNotFound > 0) {
-            _events.send(SettingsEvent.ShowMessage(UiText.StringResource(
-                R.string.import_completed_with_missing,
+            _events.send(SettingsEvent.ShowMessage(UiText.PluralResource(
+                R.plurals.import_completed_with_missing,
+                result.playlistsImported,
                 result.playlistsImported,
                 result.songsFound,
                 result.songsNotFound
             )))
         } else {
-            _events.send(SettingsEvent.ShowMessage(UiText.StringResource(
-                R.string.import_success,
+            _events.send(SettingsEvent.ShowMessage(UiText.PluralResource(
+                R.plurals.import_success,
+                result.playlistsImported,
                 result.playlistsImported
             )))
         }
@@ -340,15 +389,30 @@ class SettingsViewModel @Inject constructor(
         val tempFile = File(context.cacheDir, "import_temp.json")
         try {
             withContext(ioDispatcher) {
-                context.contentResolver.openInputStream(sourceUri)?.use { input ->
+                tempFile.delete()
+                val inputStream = context.contentResolver.openInputStream(sourceUri)
+                    ?: throw java.io.FileNotFoundException(sourceUri.toString())
+                inputStream.use { input ->
                     tempFile.outputStream().use { output ->
-                        input.copyTo(output)
+                        var total = 0L
+                        val buffer = ByteArray(DEFAULT_BUFFER_SIZE)
+                        while (true) {
+                            val read = input.read(buffer)
+                            if (read < 0) break
+                            total += read
+                            if (total > Constants.Security.MAX_IMPORT_BYTES) {
+                                throw ImportTooLargeException()
+                            }
+                            output.write(buffer, 0, read)
+                        }
                     }
                 }
             }
 
             performImport(tempFile.absolutePath)
 
+        } catch (e: ImportTooLargeException) {
+            _events.send(SettingsEvent.ShowMessage(UiText.StringResource(R.string.import_failed_too_large)))
         } catch (e: Exception) {
             Timber.tag(TAG).e(e, "Import operation failed")
             errorRepository.log(LogLevel.ERROR, TAG, "Import failed: ${e.message}", e)
@@ -360,10 +424,14 @@ class SettingsViewModel @Inject constructor(
         }
     }
 
+    private class ImportTooLargeException : Exception()
+
     private fun safeLaunch(block: suspend () -> Unit) {
         viewModelScope.launch(ioDispatcher) {
             try {
                 block()
+            } catch (e: CancellationException) {
+                throw e
             } catch (e: Exception) {
                 val errorMessage = e.message ?: "Unknown error in Settings"
                 Timber.tag(TAG).e(e, "Update failed")

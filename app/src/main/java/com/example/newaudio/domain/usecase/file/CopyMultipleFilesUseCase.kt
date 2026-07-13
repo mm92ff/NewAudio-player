@@ -1,176 +1,89 @@
 package com.example.newaudio.domain.usecase.file
 
-import android.app.Application
-import android.webkit.MimeTypeMap
-import androidx.documentfile.provider.DocumentFile
 import com.example.newaudio.domain.model.FileItem
 import com.example.newaudio.domain.repository.IMediaScannerRepository
 import com.example.newaudio.domain.usecase.settings.GetUserSettingsUseCase
+import java.io.File
+import javax.inject.Inject
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.withContext
 import timber.log.Timber
-import java.io.File
-import java.io.FileInputStream
-import java.io.FileOutputStream
-import javax.inject.Inject
 
 class CopyMultipleFilesUseCase @Inject constructor(
-    private val application: Application,
+    private val storage: SafeStorageOperations,
     private val getUserSettingsUseCase: GetUserSettingsUseCase,
     private val mediaScannerRepository: IMediaScannerRepository
 ) {
-    suspend operator fun invoke(items: List<FileItem>, targetPath: String): Boolean = withContext(Dispatchers.IO) {
-        var allSuccess = true
-
-        val cr = application.contentResolver
+    suspend operator fun invoke(
+        items: List<FileItem>,
+        targetPath: String
+    ): FileOperationResult = withContext(Dispatchers.IO) {
+        var completedItems = 0
+        val failures = mutableListOf<FileOperationFailure>()
         val settings = runCatching { getUserSettingsUseCase().first() }.getOrNull()
-        val musicTree = settings?.musicFolderPath?.let { SafTreeAccess.parseTree(it) }
-        val videoTree = settings?.videoFolderPath?.let { SafTreeAccess.parseTree(it) }
+        val musicTree = settings?.musicFolderPath?.let(SafTreeAccess::parseTree)
+        val videoTree = settings?.videoFolderPath?.let(SafTreeAccess::parseTree)
 
         for (item in items) {
-            val sourceFile = File(item.path)
-            val destFile = File(targetPath, sourceFile.name)
-            val tree = treeForItem(item, musicTree, videoTree)
+            val source = File(item.path)
+            val destination = File(targetPath, source.name)
+            val sourceTree = treeForPath(source.absolutePath, musicTree, videoTree)
+            val targetTree = treeForPath(destination.parent.orEmpty(), musicTree, videoTree)
 
-            // Prevents overwriting if the destination already exists (simple check)
-            if (destFile.exists()) {
-                Timber.w("Destination exists, skipping: ${destFile.path}")
-                allSuccess = false
+            if (storage.destinationExists(destination, targetTree)) {
+                failures += FileOperationFailure(item.path, FileOperationFailureReason.DESTINATION_EXISTS)
                 continue
             }
 
-            // 1. Physical copy (with SAF support)
-            val copySuccess = copyPhysical(sourceFile, destFile, cr, tree)
+            val copy = storage.copyVerified(source, destination, sourceTree, targetTree)
+            if (copy == null) {
+                failures += FileOperationFailure(item.path, FileOperationFailureReason.COPY_FAILED)
+                continue
+            }
 
-            // 2. Scan (insert into DB) so it's immediately visible
-            if (copySuccess) {
-                try {
-                    when (item) {
-                        is FileItem.AudioFile -> mediaScannerRepository.scanSingleFile(destFile.absolutePath)
-                        is FileItem.VideoFile -> mediaScannerRepository.scanSingleVideoFile(destFile.absolutePath)
-                        is FileItem.Folder -> scanFolderRecursively(destFile)
-                        is FileItem.OtherFile -> Unit
-                    }
-                } catch (e: Exception) {
-                    Timber.e(e, "Failed to scan copied item: ${destFile.absolutePath}")
+            try {
+                when (item) {
+                    is FileItem.AudioFile -> mediaScannerRepository.scanSingleFile(copy.destination.absolutePath)
+                    is FileItem.VideoFile -> mediaScannerRepository.scanSingleVideoFile(copy.destination.absolutePath)
+                    is FileItem.Folder -> scanFolderRecursively(copy.destination)
+                    is FileItem.OtherFile -> Unit
                 }
-            } else {
-                allSuccess = false
+                completedItems++
+            } catch (error: Exception) {
+                Timber.e(error, "Failed to scan copied item: ${copy.destination.absolutePath}")
+                failures += FileOperationFailure(item.path, FileOperationFailureReason.MEDIA_SCAN_FAILED)
             }
         }
 
-        return@withContext allSuccess
+        FileOperationResult(completedItems, failures)
     }
 
     private suspend fun scanFolderRecursively(folder: File) {
-        folder.walk().forEach { file ->
-            if (!file.isFile) return@forEach
-
-            val scannerCall: (suspend (String) -> Unit)? = when {
-                isAudioFile(file.name) -> mediaScannerRepository::scanSingleFile
-                isVideoFile(file.name) -> mediaScannerRepository::scanSingleVideoFile
-                else -> null
-            }
-
-            if (scannerCall != null) {
-                try {
-                    scannerCall(file.absolutePath)
-                } catch (e: Exception) {
-                    Timber.e("Scan failed for ${file.name}")
-                }
+        folder.walkTopDown().filter(File::isFile).forEach { file ->
+            when {
+                isAudioFile(file.name) -> mediaScannerRepository.scanSingleFile(file.absolutePath)
+                isVideoFile(file.name) -> mediaScannerRepository.scanSingleVideoFile(file.absolutePath)
             }
         }
     }
 
-    private fun isAudioFile(filename: String): Boolean {
-        val lower = filename.lowercase()
-        return lower.endsWith(".mp3") || lower.endsWith(".m4a") || lower.endsWith(".flac") || lower.endsWith(".wav") || lower.endsWith(".ogg")
-    }
+    private fun isAudioFile(filename: String): Boolean =
+        filename.substringAfterLast('.', "").lowercase() in AUDIO_EXTENSIONS
 
-    private fun isVideoFile(filename: String): Boolean {
-        val lower = filename.lowercase()
-        return lower.endsWith(".mp4") || lower.endsWith(".m4v") || lower.endsWith(".mkv") ||
-            lower.endsWith(".webm") || lower.endsWith(".avi") || lower.endsWith(".mov") ||
-            lower.endsWith(".3gp")
-    }
+    private fun isVideoFile(filename: String): Boolean =
+        filename.substringAfterLast('.', "").lowercase() in VIDEO_EXTENSIONS
 
-    private fun treeForItem(
-        item: FileItem,
+    private fun treeForPath(
+        path: String,
         musicTree: SafTreeAccess.TreeInfo?,
         videoTree: SafTreeAccess.TreeInfo?
-    ): SafTreeAccess.TreeInfo? {
-        return when (item) {
-            is FileItem.AudioFile -> musicTree
-            is FileItem.VideoFile -> videoTree
-            is FileItem.Folder -> listOf(videoTree, musicTree)
-                .filterNotNull()
-                .firstOrNull { tree -> SafTreeAccess.documentUriForFsPath(tree, item.path) != null }
-            is FileItem.OtherFile -> musicTree ?: videoTree
-        }
-    }
+    ): SafTreeAccess.TreeInfo? = listOf(musicTree, videoTree)
+        .filterNotNull()
+        .firstOrNull { SafTreeAccess.containsFsPath(it, path) }
 
-    private fun copyPhysical(
-        source: File,
-        dest: File,
-        cr: android.content.ContentResolver,
-        tree: com.example.newaudio.domain.usecase.file.SafTreeAccess.TreeInfo?
-    ): Boolean {
-        // A. SAF (Storage Access Framework) logic
-        // Required for Android 10+ and SD cards
-        if (!source.isDirectory && tree != null && SafTreeAccess.hasPersistedWritePermission(cr, tree.treeUri)) {
-            try {
-                // 1. Get URI of the destination FOLDER
-                val targetDirUri = SafTreeAccess.documentUriForFsPath(tree, dest.parent ?: "")
-
-                if (targetDirUri != null) {
-                    // 2. Wrap as DocumentFile to be able to call createFile()
-                    val targetDirDoc = DocumentFile.fromTreeUri(application, targetDirUri)
-
-                    if (targetDirDoc != null && targetDirDoc.canWrite()) {
-                        val mimeType = getMimeType(dest)
-                        // 3. Create new empty file via SAF
-                        val destDoc = targetDirDoc.createFile(mimeType, dest.name)
-
-                        val destUri = destDoc?.uri
-                        if (destDoc != null && destUri != null) {
-                            // 4. Copy data streams: FileRead -> SAFWrite
-                            FileInputStream(source).use { input ->
-                                cr.openOutputStream(destUri)?.use { output ->
-                                    input.copyTo(output)
-                                }
-                            }
-                            return true // Success via SAF!
-                        }
-                    }
-                }
-            } catch (e: Exception) {
-                Timber.e(e, "SAF copy failed: ${source.path} -> ${dest.path}")
-                // Fallthrough to fallback attempt below (unlikely that legacy works if SAF fails)
-            }
-        }
-
-        // B. Fallback: Standard File IO (works only in internal storage or on old Androids)
-        return try {
-            if (source.isDirectory) {
-                source.copyRecursively(dest, overwrite = false)
-            } else {
-                FileInputStream(source).use { input ->
-                    FileOutputStream(dest).use { output ->
-                        input.copyTo(output)
-                    }
-                }
-                true
-            }
-        } catch (e: Exception) {
-            Timber.e(e, "Legacy copy failed: ${source.path} -> ${dest.path}")
-            false
-        }
-    }
-
-    private fun getMimeType(file: File): String {
-        val extension = file.extension
-        return MimeTypeMap.getSingleton().getMimeTypeFromExtension(extension.lowercase())
-            ?: "application/octet-stream"
+    private companion object {
+        val AUDIO_EXTENSIONS = setOf("mp3", "m4a", "flac", "wav", "ogg")
+        val VIDEO_EXTENSIONS = setOf("mp4", "m4v", "mkv", "webm", "avi", "mov", "3gp")
     }
 }

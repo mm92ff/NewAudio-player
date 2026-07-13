@@ -1,21 +1,22 @@
 package com.example.newaudio.domain.usecase.file
 
 import android.app.Application
+import com.example.newaudio.data.database.DatabaseTransactionRunner
 import com.example.newaudio.data.database.SongDao
 import com.example.newaudio.data.database.VideoDao
 import com.example.newaudio.domain.model.FileItem
 import com.example.newaudio.domain.model.Song
 import com.example.newaudio.domain.model.Video
 import com.example.newaudio.domain.usecase.settings.GetUserSettingsUseCase
-import com.example.newaudio.fake.FakeMediaScannerRepository
 import com.example.newaudio.fake.FakeSettingsRepository
 import com.example.newaudio.fake.FakeVideoMarkerRepository
+import io.mockk.coEvery
 import io.mockk.coVerify
 import io.mockk.every
 import io.mockk.mockk
 import kotlinx.coroutines.test.runTest
-import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
@@ -33,16 +34,18 @@ class MoveMultipleFilesUseCaseTest {
         every { contentResolver.persistedUriPermissions } returns emptyList()
     }
     private val settingsRepository = FakeSettingsRepository()
-    private val scannerRepository = FakeMediaScannerRepository()
     private val videoMarkerRepository = FakeVideoMarkerRepository()
+    private val transactionRunner = object : DatabaseTransactionRunner {
+        override suspend fun <T> run(block: suspend () -> T): T = block()
+    }
 
     private fun useCase() = MoveMultipleFilesUseCase(
         songDao = songDao,
         videoDao = videoDao,
-        application = application,
+        storage = SafeStorageOperations(application),
         getUserSettingsUseCase = GetUserSettingsUseCase(settingsRepository),
-        mediaScannerRepository = scannerRepository,
-        videoMarkerRepository = videoMarkerRepository
+        videoMarkerRepository = videoMarkerRepository,
+        transactionRunner = transactionRunner
     )
 
     @Test
@@ -55,7 +58,7 @@ class MoveMultipleFilesUseCaseTest {
         val result = useCase()(listOf(item), sourceParent.absolutePath, targetParent.absolutePath)
 
         val moved = File(targetParent, source.name)
-        assertTrue(result)
+        assertTrue(result.isSuccess)
         assertTrue(moved.exists())
         coVerify(exactly = 1) {
             videoDao.updatePath(
@@ -80,7 +83,7 @@ class MoveMultipleFilesUseCaseTest {
         val result = useCase()(listOf(item), sourceParent.absolutePath, targetParent.absolutePath)
 
         val moved = File(targetParent, source.name)
-        assertTrue(result)
+        assertTrue(result.isSuccess)
         assertTrue(moved.exists())
         coVerify(exactly = 1) {
             songDao.updatePath(
@@ -96,7 +99,7 @@ class MoveMultipleFilesUseCaseTest {
     }
 
     @Test
-    fun `moving folder deletes old audio and video folder entries and rescans destination`() = runTest {
+    fun `moving folder preserves indexed rows instead of deleting and rescanning`() = runTest {
         val sourceParent = tempFolder.newFolder("source-parent")
         val targetParent = tempFolder.newFolder("target-parent")
         val sourceFolder = File(sourceParent, "folder").apply { mkdirs() }
@@ -114,20 +117,15 @@ class MoveMultipleFilesUseCaseTest {
         val result = useCase()(listOf(item), sourceParent.absolutePath, targetParent.absolutePath)
 
         val movedFolder = File(targetParent, sourceFolder.name)
-        assertTrue(result)
+        assertTrue(result.isSuccess)
         assertTrue(movedFolder.exists())
         assertFalse(sourceFolder.exists())
         assertTrue(File(movedFolder, "track.mp3").exists())
         assertTrue(File(movedFolder, "clip.mp4").exists())
         assertTrue(File(movedFolder, "nested/deep-track.flac").exists())
         assertTrue(File(movedFolder, "nested/deep-clip.mkv").exists())
-        coVerify(exactly = 1) { songDao.deleteByFolder(sourceFolder.absolutePath) }
-        coVerify(exactly = 1) { videoDao.deleteByFolder(sourceFolder.absolutePath) }
-        assertTrue(scannerRepository.scanSingleFileCalls.contains(File(movedFolder, "track.mp3").absolutePath))
-        assertTrue(scannerRepository.scanSingleFileCalls.contains(File(movedFolder, "nested/deep-track.flac").absolutePath))
-        assertTrue(scannerRepository.scanSingleVideoFileCalls.contains(File(movedFolder, "clip.mp4").absolutePath))
-        assertTrue(scannerRepository.scanSingleVideoFileCalls.contains(File(movedFolder, "nested/deep-clip.mkv").absolutePath))
-        assertTrue(videoMarkerRepository.updatedFolderPaths.contains(sourceFolder.absolutePath to movedFolder.absolutePath))
+        coVerify(exactly = 0) { songDao.deleteByFolder(any()) }
+        coVerify(exactly = 0) { videoDao.deleteByFolder(any()) }
     }
 
     @Test
@@ -140,9 +138,59 @@ class MoveMultipleFilesUseCaseTest {
 
         val result = useCase()(listOf(item), sourceParent.absolutePath, targetParent.absolutePath)
 
-        assertFalse(result)
+        assertFalse(result.isSuccess)
+        assertEquals(FileOperationFailureReason.DESTINATION_EXISTS, result.failures.single().reason)
         coVerify(exactly = 0) { videoDao.updatePath(any(), any(), any(), any(), any()) }
         assertTrue(videoMarkerRepository.updatedVideoPaths.isEmpty())
+    }
+
+    @Test
+    fun `database failure rolls physical rename back`() = runTest {
+        val sourceParent = tempFolder.newFolder("source-db-failure")
+        val targetParent = tempFolder.newFolder("target-db-failure")
+        val source = File(sourceParent, "track.mp3").apply { writeText("audio") }
+        coEvery { songDao.updatePath(any(), any(), any(), any(), any()) } throws IllegalStateException("db")
+
+        val result = useCase()(listOf(audioFileItem(source)), sourceParent.absolutePath, targetParent.absolutePath)
+
+        assertFalse(result.isSuccess)
+        assertEquals(FileOperationFailureReason.DATABASE_UPDATE_FAILED, result.failures.single().reason)
+        assertTrue(source.exists())
+        assertFalse(File(targetParent, source.name).exists())
+    }
+
+    @Test
+    fun `source delete failure returns specific partial failure after verified copy`() = runTest {
+        val targetParent = tempFolder.newFolder("target-delete-failure")
+        val missingSource = File(tempFolder.root, "provider-only.mp3")
+        val destination = File(targetParent, missingSource.name)
+        val storage = mockk<SafeStorageOperations>()
+        every { storage.destinationExists(destination, null) } returns false
+        every { storage.copyVerified(missingSource, destination, null) } returns
+            SafeStorageOperations.CopyResult(destination, "content://provider/copied")
+        every { storage.delete(missingSource, null) } returns false
+        val useCase = MoveMultipleFilesUseCase(
+            songDao,
+            videoDao,
+            storage,
+            GetUserSettingsUseCase(settingsRepository),
+            videoMarkerRepository,
+            transactionRunner
+        )
+
+        val result = useCase(listOf(audioFileItem(missingSource)), tempFolder.root.absolutePath, targetParent.absolutePath)
+
+        assertFalse(result.isSuccess)
+        assertEquals(FileOperationFailureReason.SOURCE_DELETE_FAILED, result.failures.single().reason)
+        coVerify {
+            songDao.updatePath(
+                oldPath = missingSource.absolutePath,
+                newPath = destination.absolutePath,
+                newContentUri = "content://provider/copied",
+                newParentPath = targetParent.absolutePath,
+                newFilename = missingSource.name
+            )
+        }
     }
 
     private fun videoFileItem(file: File): FileItem.VideoFile {

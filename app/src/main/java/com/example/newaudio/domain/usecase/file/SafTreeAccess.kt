@@ -3,7 +3,6 @@ package com.example.newaudio.domain.usecase.file
 import android.content.ContentResolver
 import android.database.Cursor
 import android.net.Uri
-import android.os.Build
 import android.os.Environment
 import android.provider.DocumentsContract
 import timber.log.Timber
@@ -22,6 +21,16 @@ object SafTreeAccess {
         val treeDocId: String,   // e.g. "primary:" or "primary:Music"
         val baseFsPath: String   // e.g. "/storage/emulated/0" or "/storage/emulated/0/Music"
     )
+
+    data class DocumentEntry(
+        val uri: Uri,
+        val name: String,
+        val mimeType: String,
+        val size: Long?
+    ) {
+        val isDirectory: Boolean
+            get() = mimeType == DocumentsContract.Document.MIME_TYPE_DIR
+    }
 
     fun parseTree(treeUriString: String): TreeInfo? {
         if (treeUriString.isBlank()) return null
@@ -84,6 +93,69 @@ object SafTreeAccess {
         return queryString(cr, docUri, DocumentsContract.Document.COLUMN_MIME_TYPE)
     }
 
+    fun queryDocument(cr: ContentResolver, docUri: Uri): DocumentEntry? {
+        val projection = arrayOf(
+            DocumentsContract.Document.COLUMN_DISPLAY_NAME,
+            DocumentsContract.Document.COLUMN_MIME_TYPE,
+            DocumentsContract.Document.COLUMN_SIZE
+        )
+        return runCatching {
+            cr.query(docUri, projection, null, null, null)?.use { cursor ->
+                if (!cursor.moveToFirst()) return@use null
+                cursor.toDocumentEntry(docUri)
+            }
+        }.getOrNull()
+    }
+
+    fun listChildren(cr: ContentResolver, tree: TreeInfo, parentUri: Uri): List<DocumentEntry>? {
+        val parentId = runCatching { DocumentsContract.getDocumentId(parentUri) }.getOrNull()
+            ?: return null
+        val childrenUri = DocumentsContract.buildChildDocumentsUriUsingTree(tree.treeUri, parentId)
+        val projection = arrayOf(
+            DocumentsContract.Document.COLUMN_DOCUMENT_ID,
+            DocumentsContract.Document.COLUMN_DISPLAY_NAME,
+            DocumentsContract.Document.COLUMN_MIME_TYPE,
+            DocumentsContract.Document.COLUMN_SIZE
+        )
+        return runCatching {
+            cr.query(childrenUri, projection, null, null, null)?.use { cursor ->
+                val idIndex = cursor.getColumnIndex(DocumentsContract.Document.COLUMN_DOCUMENT_ID)
+                if (idIndex < 0) return@use null
+                buildList<DocumentEntry> {
+                    while (cursor.moveToNext()) {
+                        val childUri = DocumentsContract.buildDocumentUriUsingTree(
+                            tree.treeUri,
+                            cursor.getString(idIndex)
+                        )
+                        cursor.toDocumentEntry(childUri)?.let { entry -> add(entry) }
+                    }
+                }
+            }
+        }.getOrElse {
+            Timber.tag(TAG).e(it, "Could not list SAF children for $parentUri")
+            null
+        }
+    }
+
+    fun findChild(
+        cr: ContentResolver,
+        tree: TreeInfo,
+        parentUri: Uri,
+        displayName: String
+    ): DocumentEntry? = listChildren(cr, tree, parentUri)?.firstOrNull { it.name == displayName }
+
+    fun createDocument(
+        cr: ContentResolver,
+        parentUri: Uri,
+        mimeType: String,
+        displayName: String
+    ): Uri? = runCatching {
+        DocumentsContract.createDocument(cr, parentUri, mimeType, displayName)
+    }.getOrElse {
+        Timber.tag(TAG).e(it, "Could not create SAF document $displayName in $parentUri")
+        null
+    }
+
     fun isDirectory(cr: ContentResolver, docUri: Uri): Boolean {
         val mime = queryMimeType(cr, docUri) ?: return false
         return mime == DocumentsContract.Document.MIME_TYPE_DIR
@@ -121,65 +193,6 @@ object SafTreeAccess {
         return runCatching { DocumentsContract.deleteDocument(cr, docUri) }.getOrDefault(false)
     }
 
-    /**
-     * SAF Move, fallback to Copy+Delete if moveDocument is not supported.
-     * Return: Uri of the new document, or null on failure.
-     */
-    fun moveDocumentBestEffort(
-        cr: ContentResolver,
-        tree: TreeInfo,
-        srcDocUri: Uri,
-        srcParentDocUri: Uri,
-        targetParentDocUri: Uri
-    ): Uri? {
-        // 1) Try native move (API 24+)
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
-            val moved = runCatching {
-                DocumentsContract.moveDocument(cr, srcDocUri, srcParentDocUri, targetParentDocUri)
-            }.getOrNull()
-            if (moved != null) return moved
-        }
-
-        // 2) Fallback: copy + delete
-        val name = queryDisplayName(cr, srcDocUri) ?: return null
-        val mime = cr.getType(srcDocUri)
-            ?: queryMimeType(cr, srcDocUri)
-            ?: "application/octet-stream"
-
-        val created = runCatching {
-            DocumentsContract.createDocument(cr, targetParentDocUri, mime, name)
-        }.getOrNull() ?: return null
-
-        val copied = copyUri(cr, srcDocUri, created)
-        if (!copied) return null
-
-        val deleted = runCatching { DocumentsContract.deleteDocument(cr, srcDocUri) }.getOrDefault(false)
-        if (!deleted) {
-            // If delete fails, we now have 2 copies -> better to report failure.
-            Timber.tag(TAG).w("Copy succeeded but delete failed for $srcDocUri")
-            return null
-        }
-
-        return created
-    }
-
-    private fun copyUri(cr: ContentResolver, from: Uri, to: Uri): Boolean {
-        return runCatching {
-            cr.openInputStream(from)?.use { input ->
-                cr.openOutputStream(to, "w")?.use { output ->
-                    val buffer = ByteArray(DEFAULT_BUFFER_SIZE)
-                    while (true) {
-                        val read = input.read(buffer)
-                        if (read <= 0) break
-                        output.write(buffer, 0, read)
-                    }
-                    output.flush()
-                    true
-                } ?: false
-            } ?: false
-        }.getOrDefault(false)
-    }
-
     private fun queryString(cr: ContentResolver, uri: Uri, column: String): String? {
         return cr.query(uri, arrayOf(column), null, null, null)?.use { c: Cursor ->
             val idx = c.getColumnIndex(column)
@@ -187,6 +200,19 @@ object SafTreeAccess {
             if (!c.moveToFirst()) return null
             c.getString(idx)
         }
+    }
+
+    private fun Cursor.toDocumentEntry(uri: Uri): DocumentEntry? {
+        val nameIndex = getColumnIndex(DocumentsContract.Document.COLUMN_DISPLAY_NAME)
+        val mimeIndex = getColumnIndex(DocumentsContract.Document.COLUMN_MIME_TYPE)
+        if (nameIndex < 0 || mimeIndex < 0) return null
+        val sizeIndex = getColumnIndex(DocumentsContract.Document.COLUMN_SIZE)
+        return DocumentEntry(
+            uri = uri,
+            name = getString(nameIndex) ?: return null,
+            mimeType = getString(mimeIndex) ?: return null,
+            size = sizeIndex.takeIf { it >= 0 && !isNull(it) }?.let(::getLong)
+        )
     }
 
     private fun joinDocId(treeDocId: String, relative: String): String {

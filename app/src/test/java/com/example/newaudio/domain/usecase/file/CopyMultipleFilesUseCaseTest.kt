@@ -31,7 +31,7 @@ class CopyMultipleFilesUseCaseTest {
     private val scannerRepository = FakeMediaScannerRepository()
 
     private fun useCase() = CopyMultipleFilesUseCase(
-        application = application,
+        storage = SafeStorageOperations(application),
         getUserSettingsUseCase = GetUserSettingsUseCase(settingsRepository),
         mediaScannerRepository = scannerRepository
     )
@@ -45,7 +45,7 @@ class CopyMultipleFilesUseCaseTest {
         val result = useCase()(listOf(item), target.absolutePath)
 
         val copied = File(target, source.name)
-        assertTrue(result)
+        assertTrue(result.isSuccess)
         assertTrue(copied.exists())
         assertEquals(copied.absolutePath, scannerRepository.scanSingleVideoFileCalled)
         assertNull(scannerRepository.scanSingleFileCalled)
@@ -60,7 +60,7 @@ class CopyMultipleFilesUseCaseTest {
         val result = useCase()(listOf(item), target.absolutePath)
 
         val copied = File(target, source.name)
-        assertTrue(result)
+        assertTrue(result.isSuccess)
         assertTrue(copied.exists())
         assertEquals(copied.absolutePath, scannerRepository.scanSingleFileCalled)
         assertNull(scannerRepository.scanSingleVideoFileCalled)
@@ -84,7 +84,7 @@ class CopyMultipleFilesUseCaseTest {
         val result = useCase()(listOf(item), target.absolutePath)
 
         val copiedFolder = File(target, sourceFolder.name)
-        assertTrue(result)
+        assertTrue(result.isSuccess)
         assertTrue(copiedFolder.exists())
         assertTrue(File(copiedFolder, "track.mp3").exists())
         assertTrue(File(copiedFolder, "clip.mp4").exists())
@@ -105,7 +105,8 @@ class CopyMultipleFilesUseCaseTest {
 
         val result = useCase()(listOf(item), target.absolutePath)
 
-        assertFalse(result)
+        assertFalse(result.isSuccess)
+        assertEquals(FileOperationFailureReason.DESTINATION_EXISTS, result.failures.single().reason)
         assertNull(scannerRepository.scanSingleVideoFileCalled)
     }
 

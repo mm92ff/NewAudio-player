@@ -39,8 +39,8 @@ interface VideoDao {
         """
         DELETE FROM videos
         WHERE parentPath = :folderPath
-           OR parentPath LIKE :folderPath || '/%'
-           OR path LIKE :folderPath || '/%'
+           OR substr(parentPath, 1, length(:folderPath) + 1) = :folderPath || '/'
+           OR substr(path, 1, length(:folderPath) + 1) = :folderPath || '/'
         """
     )
     suspend fun deleteByFolder(folderPath: String)
@@ -62,8 +62,8 @@ interface VideoDao {
         """
         SELECT DISTINCT parentPath
         FROM videos
-        WHERE parentPath LIKE :parentPath || '/%'
-          AND parentPath NOT LIKE :parentPath || '/%/%'
+        WHERE substr(parentPath, 1, length(:parentPath) + 1) = :parentPath || '/'
+          AND instr(substr(parentPath, length(:parentPath) + 2), '/') = 0
         """
     )
     fun observeSubFolders(parentPath: String): Flow<List<String>>
@@ -72,7 +72,7 @@ interface VideoDao {
         """
         SELECT parentPath AS path, COUNT(*) AS videoCount
         FROM videos
-        WHERE parentPath LIKE :parentPath || '/%'
+        WHERE substr(parentPath, 1, length(:parentPath) + 1) = :parentPath || '/'
         GROUP BY parentPath
         """
     )
@@ -105,10 +105,10 @@ interface VideoDao {
     @Query("SELECT * FROM videos WHERE parentPath = :parentPath ORDER BY title ASC")
     suspend fun getVideosInFolderSync(parentPath: String): List<VideoEntity>
 
-    @Query("SELECT * FROM videos WHERE path LIKE :parentPath || '/%'")
+    @Query("SELECT * FROM videos WHERE substr(path, 1, length(:parentPath) + 1) = :parentPath || '/'")
     suspend fun getAllVideosInTree(parentPath: String): List<VideoEntity>
 
-    @Query("SELECT path FROM videos WHERE path LIKE :parentPath || '/%'")
+    @Query("SELECT path FROM videos WHERE substr(path, 1, length(:parentPath) + 1) = :parentPath || '/'")
     suspend fun getAllVideoPathsInTree(parentPath: String): List<String>
 
     @Query("DELETE FROM videos WHERE path IN (:paths)")

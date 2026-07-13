@@ -15,6 +15,8 @@ import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.update
@@ -48,6 +50,25 @@ class PlayerListenerDelegate @Inject constructor(
     }
 
     private var positionUpdateJob: Job? = null
+    private val saveRequests = Channel<PlaybackSaveRequest>(Channel.CONFLATED)
+
+    init {
+        coroutineScope.launch(ioDispatcher) {
+            for (request in saveRequests) {
+                try {
+                    settingsRepository.saveLastPlayedSong(
+                        request.song,
+                        request.position,
+                        request.folderPath
+                    )
+                } catch (error: CancellationException) {
+                    throw error
+                } catch (error: Exception) {
+                    Timber.tag(TAG).e(error, "Could not persist playback snapshot")
+                }
+            }
+        }
+    }
 
     // Volatile for thread visibility in case Main/IO run on different cores
     @Volatile
@@ -72,8 +93,7 @@ class PlayerListenerDelegate @Inject constructor(
         playbackState.update {
             it.copy(
                 currentSong = currentSong,
-                currentVideo = currentVideo,
-                playerError = null
+                currentVideo = currentVideo
             )
         }
         saveCurrentState()
@@ -128,8 +148,7 @@ class PlayerListenerDelegate @Inject constructor(
                 currentPosition = player.currentPosition,
                 totalDuration = if (player.duration > 0) player.duration else 0L,
                 isShuffleEnabled = player.shuffleModeEnabled,
-                repeatMode = player.repeatMode,
-                playerError = if (player.playbackState != Player.STATE_IDLE) null else current.playerError
+                repeatMode = player.repeatMode
             )
         }
     }
@@ -177,9 +196,9 @@ class PlayerListenerDelegate @Inject constructor(
         lastSaveTime = System.currentTimeMillis()
         lastSavedPosition = currentState.currentPosition
 
-        coroutineScope.launch(ioDispatcher) {
-            settingsRepository.saveLastPlayedSong(song, currentState.currentPosition, currentFolderPath)
-        }
+        saveRequests.trySend(
+            PlaybackSaveRequest(song, currentState.currentPosition, currentFolderPath)
+        )
     }
 
     private fun MediaItem.toSong(): Song = Song(
@@ -211,4 +230,10 @@ class PlayerListenerDelegate @Inject constructor(
             .lowercase(Locale.ROOT)
         return extension in VIDEO_EXTENSIONS
     }
+
+    private data class PlaybackSaveRequest(
+        val song: Song,
+        val position: Long,
+        val folderPath: String?
+    )
 }

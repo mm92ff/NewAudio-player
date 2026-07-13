@@ -1,7 +1,10 @@
 package com.example.newaudio.feature.settings
 
+import android.Manifest
 import android.content.Intent
+import android.content.pm.PackageManager
 import android.net.Uri
+import android.os.Build
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.*
@@ -22,6 +25,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.core.content.ContextCompat
 import com.example.newaudio.R
 import com.example.newaudio.domain.model.UserPreferences.VideoDisplayMode
 import com.example.newaudio.feature.settings.composables.*
@@ -109,6 +113,30 @@ fun SettingsScreen(
         uri?.let {
             // Delegate I/O operations to ViewModel instead of handling in composable
             viewModel.onImportPlaylistsFromUri(it, context)
+        }
+    }
+
+    val bluetoothPermissionLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.RequestPermission()
+    ) { granted ->
+        if (granted) {
+            viewModel.onAutoPlayOnBluetoothChange(true)
+        } else {
+            viewModel.onBluetoothPermissionDenied()
+        }
+    }
+
+    val onBluetoothAutoplayChange: (Boolean) -> Unit = { enabled ->
+        val needsPermission = enabled &&
+            Build.VERSION.SDK_INT >= Build.VERSION_CODES.S &&
+            ContextCompat.checkSelfPermission(
+                context,
+                Manifest.permission.BLUETOOTH_CONNECT
+            ) != PackageManager.PERMISSION_GRANTED
+        if (needsPermission) {
+            bluetoothPermissionLauncher.launch(Manifest.permission.BLUETOOTH_CONNECT)
+        } else {
+            viewModel.onAutoPlayOnBluetoothChange(enabled)
         }
     }
 
@@ -223,7 +251,7 @@ fun SettingsScreen(
             }
             item { MusicFolderSetting(settings.musicFolderPath) { folderPickerLauncher.launch(null) } }
             item { VideoFolderSetting(settings.videoFolderPath) { videoFolderPickerLauncher.launch(null) } }
-            item { BluetoothAutoplaySetting(settings.isAutoPlayOnBluetooth, viewModel::onAutoPlayOnBluetoothChange) }
+            item { BluetoothAutoplaySetting(settings.isAutoPlayOnBluetooth, onBluetoothAutoplayChange) }
 
             item {
                 ProgressBarHeightSetting(

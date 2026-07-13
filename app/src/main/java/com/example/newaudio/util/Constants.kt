@@ -10,6 +10,12 @@ object Constants {
         const val VERTICAL_ROTATION_DEGREES = 270f
     }
 
+    object Security {
+        const val MAX_IMPORT_BYTES = 10L * 1024L * 1024L
+        const val MAX_ARTWORK_BYTES = 16 * 1024 * 1024
+        const val MAX_ARTWORK_PIXELS = 4L * 1024L * 1024L
+    }
+
     object ThemeColors {
         val primaryColorOptions = listOf(
             "#F44336", // Red
@@ -33,10 +39,6 @@ object Constants {
     }
 
     object Playback {
-        const val ACTION_PLAY_PAUSE = "PLAY_PAUSE"
-        const val ACTION_NEXT = "NEXT"
-        const val ACTION_PREVIOUS = "PREVIOUS"
-
         const val ACTION_SET_EQ_ENABLED = "ACTION_SET_EQ_ENABLED"
         const val ACTION_SET_EQ_BAND = "ACTION_SET_EQ_BAND"
         const val ACTION_GET_EQ_CONFIG = "ACTION_GET_EQ_CONFIG"

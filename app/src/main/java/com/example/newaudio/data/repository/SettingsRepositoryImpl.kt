@@ -335,6 +335,8 @@ class SettingsRepositoryImpl @Inject constructor(
             // Fix: Content URI is saved
             if (song.contentUri.isNotEmpty()) {
                 prefs[Keys.LAST_SONG_CONTENT_URI] = song.contentUri
+            } else {
+                prefs.remove(Keys.LAST_SONG_CONTENT_URI)
             }
 
             prefs[Keys.LAST_SONG_TITLE] = song.title
@@ -346,9 +348,10 @@ class SettingsRepositoryImpl @Inject constructor(
             } else {
                 prefs.remove(Keys.LAST_SONG_ALBUM_ART)
             }
-            // Only write if present — never delete (to preserve older saves)
             if (folderPath != null) {
                 prefs[Keys.LAST_FOLDER_PATH] = folderPath
+            } else {
+                prefs.remove(Keys.LAST_FOLDER_PATH)
             }
         }
     }

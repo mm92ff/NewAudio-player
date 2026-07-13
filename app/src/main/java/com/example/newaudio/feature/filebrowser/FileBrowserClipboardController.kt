@@ -1,10 +1,9 @@
 package com.example.newaudio.feature.filebrowser
 
-import com.example.newaudio.R
 import com.example.newaudio.domain.model.FileItem
 import com.example.newaudio.domain.usecase.file.CopyMultipleFilesUseCase // NEW
 import com.example.newaudio.domain.usecase.file.MoveMultipleFilesUseCase // NEW
-import com.example.newaudio.util.UiText
+import com.example.newaudio.domain.usecase.file.FileOperationFailureReason
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -52,16 +51,28 @@ internal class FileBrowserClipboardController(
             uiState.update { it.copy(isLoading = true) }
 
             // ✅ NEW: Batch operations
-            val success = when (clipboard.action) {
+            val result = when (clipboard.action) {
                 ClipboardAction.COPY -> copyMultipleFilesUseCase(clipboard.files, targetPath)
                 ClipboardAction.MOVE -> moveMultipleFilesUseCase(clipboard.files, clipboard.sourceParentPath, targetPath)
             }
 
-            if (success) {
+            val destinationChanged = result.completedItems > 0 || result.failures.any {
+                it.reason == FileOperationFailureReason.SOURCE_DELETE_FAILED ||
+                    it.reason == FileOperationFailureReason.MEDIA_SCAN_FAILED
+            }
+            if (destinationChanged) {
                 onClipboardOperationCompleted()
+            }
+            if (result.isSuccess) {
                 uiState.update { it.copy(clipboardState = ClipboardState.Empty, isLoading = false) }
             } else {
-                uiState.update { it.copy(isLoading = false, errorRes = UiText.StringResource(R.string.error_loading)) }
+                uiState.update {
+                    it.copy(
+                        clipboardState = if (destinationChanged) ClipboardState.Empty else it.clipboardState,
+                        isLoading = false,
+                        errorRes = result.toErrorUiText()
+                    )
+                }
             }
         }
     }

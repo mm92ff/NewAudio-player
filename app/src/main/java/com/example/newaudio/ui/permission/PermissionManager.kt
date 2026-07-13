@@ -28,6 +28,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -56,50 +57,65 @@ fun PermissionAndSetupManager(
     var isMusicFolderSetupSkipped by remember { mutableStateOf(false) }
     var isVideoFolderSetupSkipped by remember { mutableStateOf(false) }
 
-    val mediaPermissions = remember {
+    val audioPermissions = remember {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-            listOf(
-                Manifest.permission.READ_MEDIA_AUDIO,
+            arrayOf(Manifest.permission.READ_MEDIA_AUDIO)
+        } else {
+            arrayOf(Manifest.permission.READ_EXTERNAL_STORAGE)
+        }
+    }
+    val videoPermissions = remember {
+        when {
+            Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE -> arrayOf(
+                Manifest.permission.READ_MEDIA_VIDEO,
+                Manifest.permission.READ_MEDIA_VISUAL_USER_SELECTED
+            )
+            Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU -> arrayOf(
                 Manifest.permission.READ_MEDIA_VIDEO
             )
-        } else {
-            listOf(Manifest.permission.READ_EXTERNAL_STORAGE)
+            else -> arrayOf(Manifest.permission.READ_EXTERNAL_STORAGE)
         }
     }
 
-    var isGranted by remember {
-        mutableStateOf(mediaPermissions.all { checkPermission(context, it) })
+    var mediaAccess by remember {
+        mutableStateOf(currentMediaAccess(context))
+    }
+    var hasSafAccess by remember {
+        mutableStateOf(hasPersistedSafReadAccess(context))
     }
 
-    var showRationaleScreen by remember { mutableStateOf(false) }
+    var audioRequested by rememberSaveable { mutableStateOf(false) }
+    var videoRequested by rememberSaveable { mutableStateOf(false) }
+    var notificationRequested by rememberSaveable { mutableStateOf(false) }
 
-    val launcher = rememberLauncherForActivityResult(
+    val audioLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.RequestMultiplePermissions()
-    ) { permissions ->
-        val granted = mediaPermissions.all { permission ->
-            permissions[permission] == true || checkPermission(context, permission)
-        }
-        isGranted = granted
-
-        if (!granted) {
-            showRationaleScreen = true
-        }
+    ) {
+        mediaAccess = currentMediaAccess(context)
+        hasSafAccess = hasPersistedSafReadAccess(context)
     }
+    val videoLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.RequestMultiplePermissions()
+    ) {
+        mediaAccess = currentMediaAccess(context)
+        hasSafAccess = hasPersistedSafReadAccess(context)
+    }
+    val notificationLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.RequestPermission()
+    ) { /* Optional: denial never blocks playback. */ }
 
     DisposableEffect(lifecycleOwner) {
         val observer = LifecycleEventObserver { _, event ->
             if (event == Lifecycle.Event.ON_RESUME) {
-                isGranted = mediaPermissions.all { checkPermission(context, it) }
-                if (isGranted) {
-                    showRationaleScreen = false
-                }
+                mediaAccess = currentMediaAccess(context)
+                hasSafAccess = hasPersistedSafReadAccess(context)
             }
         }
         lifecycleOwner.lifecycle.addObserver(observer)
         onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
     }
 
-    if (isGranted) {
+    if (mediaAccess.hasAnyAccess || hasSafAccess) {
         // Permission is granted.
         // Wait for settings to be loaded
         when (val state = uiState) {
@@ -112,7 +128,7 @@ fun PermissionAndSetupManager(
                 }
             }
             is PermissionUiState.Success -> {
-                if (!state.isMusicFolderSet && !isMusicFolderSetupSkipped) {
+                if (mediaAccess.audio && !state.isMusicFolderSet && !isMusicFolderSetupSkipped) {
                     MusicFolderSetupScreen(
                         onFolderSelected = { path ->
                             viewModel.onMusicFolderSelected(path)
@@ -121,7 +137,7 @@ fun PermissionAndSetupManager(
                             isMusicFolderSetupSkipped = true
                         }
                     )
-                } else if (!state.isVideoFolderSet && !isVideoFolderSetupSkipped) {
+                } else if (mediaAccess.video && !state.isVideoFolderSet && !isVideoFolderSetupSkipped) {
                     VideoFolderSetupScreen(
                         onFolderSelected = { path ->
                             viewModel.onVideoFolderSelected(path)
@@ -146,7 +162,7 @@ fun PermissionAndSetupManager(
                     verticalArrangement = Arrangement.Center
                 ) {
                     Text(
-                        text = "Error",
+                        text = stringResource(R.string.permission_setup_error),
                         style = MaterialTheme.typography.headlineSmall,
                         textAlign = TextAlign.Center
                     )
@@ -163,41 +179,46 @@ fun PermissionAndSetupManager(
                         },
                         modifier = Modifier.fillMaxWidth(0.8f)
                     ) {
-                        Text("Skip Setup")
+                        Text(stringResource(R.string.permission_skip_setup))
                     }
                 }
             }
         }
     } else {
-        LaunchedEffect(Unit) {
-            if (!showRationaleScreen) {
-                val permsToRequest = mediaPermissions.toMutableList()
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-                    permsToRequest.add(Manifest.permission.POST_NOTIFICATIONS)
-                }
-                launcher.launch(permsToRequest.toTypedArray())
-            }
+        val audioNeedsSettings = audioRequested && audioPermissions.none {
+            ActivityCompat.shouldShowRequestPermissionRationale(context as Activity, it)
         }
-
-        if (showRationaleScreen) {
-            PermissionRationaleScreen(
-                onGrantClick = {
-                    val permsToRequest = mediaPermissions.toMutableList()
-                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-                        permsToRequest.add(Manifest.permission.POST_NOTIFICATIONS)
-                    }
-                    launcher.launch(permsToRequest.toTypedArray())
-                },
-                onSettingsClick = {
-                    val intent = Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS).apply {
-                        data = Uri.fromParts("package", context.packageName, null)
-                    }
-                    context.startActivity(intent)
-                },
-                showSettingsLink = mediaPermissions.none {
-                    ActivityCompat.shouldShowRequestPermissionRationale(context as Activity, it)
+        val videoNeedsSettings = videoRequested && videoPermissions.none {
+            ActivityCompat.shouldShowRequestPermissionRationale(context as Activity, it)
+        }
+        PermissionRationaleScreen(
+            onGrantAudioClick = {
+                audioRequested = true
+                audioLauncher.launch(audioPermissions)
+            },
+            onGrantVideoClick = {
+                videoRequested = true
+                videoLauncher.launch(videoPermissions)
+            },
+            onSettingsClick = {
+                val intent = Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS).apply {
+                    data = Uri.fromParts("package", context.packageName, null)
                 }
-            )
+                context.startActivity(intent)
+            },
+            showSettingsLink = audioNeedsSettings || videoNeedsSettings
+        )
+    }
+
+    LaunchedEffect(mediaAccess.hasAnyAccess, hasSafAccess) {
+        if (
+            Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
+            (mediaAccess.hasAnyAccess || hasSafAccess) &&
+            !notificationRequested &&
+            !checkPermission(context, Manifest.permission.POST_NOTIFICATIONS)
+        ) {
+            notificationRequested = true
+            notificationLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
         }
     }
 }
@@ -206,9 +227,30 @@ private fun checkPermission(context: Context, permission: String): Boolean {
     return ContextCompat.checkSelfPermission(context, permission) == PackageManager.PERMISSION_GRANTED
 }
 
+private data class MediaAccess(val audio: Boolean, val video: Boolean) {
+    val hasAnyAccess: Boolean get() = audio || video
+}
+
+private fun currentMediaAccess(context: Context): MediaAccess {
+    if (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU) {
+        val granted = checkPermission(context, Manifest.permission.READ_EXTERNAL_STORAGE)
+        return MediaAccess(audio = granted, video = granted)
+    }
+
+    val audio = checkPermission(context, Manifest.permission.READ_MEDIA_AUDIO)
+    val video = checkPermission(context, Manifest.permission.READ_MEDIA_VIDEO) ||
+        (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE &&
+            checkPermission(context, Manifest.permission.READ_MEDIA_VISUAL_USER_SELECTED))
+    return MediaAccess(audio = audio, video = video)
+}
+
+private fun hasPersistedSafReadAccess(context: Context): Boolean =
+    context.contentResolver.persistedUriPermissions.any { it.isReadPermission }
+
 @Composable
 private fun PermissionRationaleScreen(
-    onGrantClick: () -> Unit,
+    onGrantAudioClick: () -> Unit,
+    onGrantVideoClick: () -> Unit,
     onSettingsClick: () -> Unit,
     showSettingsLink: Boolean
 ) {
@@ -231,19 +273,26 @@ private fun PermissionRationaleScreen(
         )
         Spacer(modifier = Modifier.height(Dimens.PaddingLarge))
 
+        Button(
+            onClick = onGrantAudioClick,
+            modifier = Modifier.fillMaxWidth(Dimens.BUTTON_WIDTH_FACTOR)
+        ) {
+            Text(stringResource(R.string.grant_audio_permission))
+        }
+        Spacer(modifier = Modifier.height(Dimens.PaddingMedium))
+        Button(
+            onClick = onGrantVideoClick,
+            modifier = Modifier.fillMaxWidth(Dimens.BUTTON_WIDTH_FACTOR)
+        ) {
+            Text(stringResource(R.string.grant_video_permission))
+        }
         if (showSettingsLink) {
+            Spacer(modifier = Modifier.height(Dimens.PaddingMedium))
             Button(
                 onClick = onSettingsClick,
                 modifier = Modifier.fillMaxWidth(Dimens.BUTTON_WIDTH_FACTOR)
             ) {
                 Text(stringResource(id = R.string.permission_open_settings))
-            }
-        } else {
-            Button(
-                onClick = onGrantClick,
-                modifier = Modifier.fillMaxWidth(Dimens.BUTTON_WIDTH_FACTOR)
-            ) {
-                Text(stringResource(R.string.grant_permissions))
             }
         }
     }

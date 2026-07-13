@@ -69,7 +69,7 @@ object AppDatabaseMigrations {
                     `position` INTEGER NOT NULL,
                     PRIMARY KEY(`playlistId`, `videoPath`),
                     FOREIGN KEY(`playlistId`) REFERENCES `video_playlists`(`id`) ON UPDATE NO ACTION ON DELETE CASCADE,
-                    FOREIGN KEY(`videoPath`) REFERENCES `videos`(`path`) ON UPDATE CASCADE ON DELETE CASCADE
+                    FOREIGN KEY(`videoPath`) REFERENCES `videos`(`path`) ON UPDATE NO ACTION ON DELETE CASCADE
                 )
                 """.trimIndent()
             )
@@ -100,6 +100,56 @@ object AppDatabaseMigrations {
             db.execSQL("CREATE INDEX IF NOT EXISTS `index_video_markers_fileHash` ON `video_markers` (`fileHash`)")
             db.execSQL("CREATE INDEX IF NOT EXISTS `index_video_markers_filename_fileSize_durationMs` ON `video_markers` (`filename`, `fileSize`, `durationMs`)")
             db.execSQL("CREATE INDEX IF NOT EXISTS `index_video_markers_videoPath_positionMs` ON `video_markers` (`videoPath`, `positionMs`)")
+        }
+    }
+
+    val MIGRATION_6_7 = object : Migration(6, 7) {
+        override fun migrate(db: SupportSQLiteDatabase) {
+            db.execSQL(
+                """
+                CREATE TABLE IF NOT EXISTS `playlist_songs_new` (
+                    `playlistId` INTEGER NOT NULL,
+                    `songPath` TEXT NOT NULL,
+                    `position` INTEGER NOT NULL,
+                    PRIMARY KEY(`playlistId`, `songPath`),
+                    FOREIGN KEY(`playlistId`) REFERENCES `playlists`(`id`) ON UPDATE NO ACTION ON DELETE CASCADE,
+                    FOREIGN KEY(`songPath`) REFERENCES `songs`(`path`) ON UPDATE CASCADE ON DELETE CASCADE
+                )
+                """.trimIndent()
+            )
+            db.execSQL(
+                """
+                INSERT INTO `playlist_songs_new` (`playlistId`, `songPath`, `position`)
+                SELECT `playlistId`, `songPath`, `position` FROM `playlist_songs`
+                """.trimIndent()
+            )
+            db.execSQL("DROP TABLE `playlist_songs`")
+            db.execSQL("ALTER TABLE `playlist_songs_new` RENAME TO `playlist_songs`")
+            db.execSQL("CREATE INDEX IF NOT EXISTS `index_playlist_songs_playlistId` ON `playlist_songs` (`playlistId`)")
+            db.execSQL("CREATE INDEX IF NOT EXISTS `index_playlist_songs_songPath` ON `playlist_songs` (`songPath`)")
+
+            db.execSQL(
+                """
+                CREATE TABLE IF NOT EXISTS `video_playlist_items_new` (
+                    `playlistId` INTEGER NOT NULL,
+                    `videoPath` TEXT NOT NULL,
+                    `position` INTEGER NOT NULL,
+                    PRIMARY KEY(`playlistId`, `videoPath`),
+                    FOREIGN KEY(`playlistId`) REFERENCES `video_playlists`(`id`) ON UPDATE NO ACTION ON DELETE CASCADE,
+                    FOREIGN KEY(`videoPath`) REFERENCES `videos`(`path`) ON UPDATE CASCADE ON DELETE CASCADE
+                )
+                """.trimIndent()
+            )
+            db.execSQL(
+                """
+                INSERT INTO `video_playlist_items_new` (`playlistId`, `videoPath`, `position`)
+                SELECT `playlistId`, `videoPath`, `position` FROM `video_playlist_items`
+                """.trimIndent()
+            )
+            db.execSQL("DROP TABLE `video_playlist_items`")
+            db.execSQL("ALTER TABLE `video_playlist_items_new` RENAME TO `video_playlist_items`")
+            db.execSQL("CREATE INDEX IF NOT EXISTS `index_video_playlist_items_playlistId` ON `video_playlist_items` (`playlistId`)")
+            db.execSQL("CREATE INDEX IF NOT EXISTS `index_video_playlist_items_videoPath` ON `video_playlist_items` (`videoPath`)")
         }
     }
 }

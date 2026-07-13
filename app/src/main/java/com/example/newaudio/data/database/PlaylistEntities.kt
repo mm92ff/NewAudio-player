@@ -28,6 +28,7 @@ data class PlaylistEntity(
             entity = SongEntity::class,
             parentColumns = ["path"],
             childColumns = ["songPath"],
+            onUpdate = ForeignKey.CASCADE,
             onDelete = ForeignKey.CASCADE
         )
     ],

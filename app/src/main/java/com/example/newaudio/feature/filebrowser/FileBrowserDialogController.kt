@@ -11,6 +11,7 @@ import com.example.newaudio.domain.usecase.file.CreateFolderUseCase
 import com.example.newaudio.domain.usecase.file.DeleteFileUseCase
 import com.example.newaudio.domain.usecase.file.DeleteMultipleFilesUseCase // NEW: Import
 import com.example.newaudio.domain.usecase.file.RenameFileUseCase
+import com.example.newaudio.domain.usecase.file.FileOperationFailureReason
 import com.example.newaudio.util.UiText
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.CoroutineScope
@@ -79,13 +80,17 @@ internal class FileBrowserDialogController(
     fun onDeleteConfirmed(file: FileItem) {
         scope.launch(ioDispatcher) {
             val parentPath = uiState.value.currentPath
-            val success = deleteFileUseCase(parentPath, file)
-            if (success) {
+            val result = deleteFileUseCase(parentPath, file)
+            val physicallyDeleted = result.isSuccess || result.failures.none {
+                it.reason == FileOperationFailureReason.DELETE_FAILED
+            }
+            if (physicallyDeleted) {
                 val deletedPaths = listOf(file.path)
                 removeDeletedItemsFromUi(deletedPaths)
                 onFilesDeleted(deletedPaths)
-            } else {
-                uiState.update { it.copy(errorRes = UiText.StringResource(R.string.error_loading)) }
+            }
+            if (!result.isSuccess) {
+                uiState.update { it.copy(errorRes = result.toErrorUiText()) }
             }
             onDismissDialog()
         }
@@ -97,14 +102,18 @@ internal class FileBrowserDialogController(
             val parentPath = uiState.value.currentPath
 
             // One call instead of a loop -> 1 DB transaction
-            val success = deleteMultipleFilesUseCase(parentPath, files)
+            val result = deleteMultipleFilesUseCase(parentPath, files)
 
-            if (success) {
-                val deletedPaths = files.map { it.path }
+            val notPhysicallyDeleted = result.failures
+                .filter { it.reason == FileOperationFailureReason.DELETE_FAILED }
+                .mapTo(mutableSetOf()) { it.path }
+            val deletedPaths = files.map { it.path }.filterNot(notPhysicallyDeleted::contains)
+            if (deletedPaths.isNotEmpty()) {
                 removeDeletedItemsFromUi(deletedPaths)
                 onFilesDeleted(deletedPaths)
-            } else {
-                uiState.update { it.copy(errorRes = UiText.StringResource(R.string.error_loading)) }
+            }
+            if (!result.isSuccess) {
+                uiState.update { it.copy(errorRes = result.toErrorUiText()) }
             }
             onDismissDialog()
         }
@@ -112,8 +121,9 @@ internal class FileBrowserDialogController(
 
     fun onRenameConfirmed(file: FileItem, newName: String) {
         scope.launch(ioDispatcher) {
-            if (!renameFileUseCase(file, newName)) {
-                uiState.update { it.copy(errorRes = UiText.StringResource(R.string.error_loading)) }
+            val result = renameFileUseCase(file, newName)
+            if (!result.isSuccess) {
+                uiState.update { it.copy(errorRes = result.toErrorUiText()) }
             }
             onDismissDialog()
         }

@@ -4,6 +4,7 @@ import android.content.Context
 import android.net.Uri
 import com.example.newaudio.data.database.PlaylistEntity
 import com.example.newaudio.data.database.PlaylistSongEntity
+import com.example.newaudio.data.database.DatabaseTransactionRunner
 import com.example.newaudio.data.database.VideoDao
 import com.example.newaudio.data.database.VideoMarkerEntity
 import com.example.newaudio.data.database.VideoPlaylistEntity
@@ -17,14 +18,17 @@ import com.example.newaudio.domain.model.Song
 import com.example.newaudio.domain.model.UserPreferences
 import com.example.newaudio.domain.repository.IPlaylistRepository
 import com.example.newaudio.domain.repository.ImportResult
+import com.example.newaudio.domain.repository.ImportFailure
 import com.example.newaudio.domain.repository.PlaylistExportContainer
 import com.example.newaudio.domain.repository.PlaylistExportModel
 import com.example.newaudio.domain.repository.SongExportModel
 import com.example.newaudio.domain.repository.VideoExportModel
 import com.example.newaudio.domain.repository.VideoMarkerExportModel
 import com.example.newaudio.domain.repository.VideoPlaylistExportModel
+import com.example.newaudio.util.Constants
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.CoroutineDispatcher
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flowOn
@@ -33,13 +37,14 @@ import kotlinx.coroutines.withContext
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
 import timber.log.Timber
-import java.io.BufferedReader
+import java.io.ByteArrayOutputStream
 import java.io.File
 import java.io.FileNotFoundException
 import java.io.FileOutputStream
-import java.io.InputStreamReader
+import java.io.InputStream
 import javax.inject.Inject
 import javax.inject.Singleton
+import kotlinx.serialization.SerializationException
 
 @Singleton
 class PlaylistRepositoryImpl @Inject constructor(
@@ -47,6 +52,7 @@ class PlaylistRepositoryImpl @Inject constructor(
     private val videoPlaylistDao: VideoPlaylistDao,
     private val videoDao: VideoDao,
     private val videoMarkerDao: VideoMarkerDao,
+    private val transactionRunner: DatabaseTransactionRunner,
     @ApplicationContext private val context: Context,
     @IoDispatcher private val ioDispatcher: CoroutineDispatcher
 ) : IPlaylistRepository {
@@ -225,22 +231,15 @@ class PlaylistRepositoryImpl @Inject constructor(
         var restoredPreferences: UserPreferences? = null
 
         try {
-            val uri = Uri.parse(filePath)
-            val jsonString = try {
-                context.contentResolver.openInputStream(uri)?.use { inputStream ->
-                    BufferedReader(InputStreamReader(inputStream)).readText()
-                } ?: throw FileNotFoundException("Could not open input stream for $uri")
-            } catch (e: FileNotFoundException) {
-                val fallbackPath = uri.path
-                val file = if (fallbackPath != null) File(fallbackPath) else File(filePath)
-                if (file.exists()) file.readText() else return@withContext ImportResult(0, 0, 0, 0)
-            }
-
+            val jsonString = readImportText(filePath)
             val lenientJson = Json { ignoreUnknownKeys = true }
             val container = lenientJson.decodeFromString<PlaylistExportContainer>(jsonString)
-            restoredPreferences = container.settings
+            validateImport(container)
 
-            container.playlists.forEachIndexed { pIdx, exportModel ->
+            transactionRunner.run {
+                restoredPreferences = container.settings
+
+                container.playlists.forEachIndexed { pIdx, exportModel ->
                 val playlistEntity = PlaylistEntity(
                     name = exportModel.name,
                     position = pIdx,
@@ -292,7 +291,7 @@ class PlaylistRepositoryImpl @Inject constructor(
                 playlistsImported++
             }
 
-            container.videoPlaylists.forEachIndexed { pIdx, exportModel ->
+                container.videoPlaylists.forEachIndexed { pIdx, exportModel ->
                 val playlistEntity = VideoPlaylistEntity(
                     name = exportModel.name,
                     position = pIdx,
@@ -336,7 +335,7 @@ class PlaylistRepositoryImpl @Inject constructor(
                 playlistsImported++
             }
 
-            container.videoMarkers.forEach { markerExport ->
+                container.videoMarkers.forEach { markerExport ->
                 val video = resolveMarkerVideo(markerExport) ?: run {
                     songsNotFound++
                     return@forEach
@@ -361,12 +360,134 @@ class PlaylistRepositoryImpl @Inject constructor(
                     )
                     songsFixed++
                 }
+                }
+
+                ImportResult(playlistsImported, songsFound, songsFixed, songsNotFound, restoredPreferences)
             }
-        } catch (e: Exception) {
-            Timber.e(e, "Import failed")
+        } catch (error: BackupImportException) {
+            Timber.e(error, "Import rejected: ${error.failure}")
+            ImportResult(0, 0, 0, 0, failure = error.failure)
+        } catch (error: SerializationException) {
+            Timber.e(error, "Import JSON is invalid")
+            ImportResult(0, 0, 0, 0, failure = ImportFailure.INVALID_FORMAT)
+        } catch (error: FileNotFoundException) {
+            Timber.e(error, "Import file not found")
+            ImportResult(0, 0, 0, 0, failure = ImportFailure.NOT_FOUND)
+        } catch (error: Exception) {
+            if (error is CancellationException) throw error
+            Timber.e(error, "Import failed")
+            ImportResult(0, 0, 0, 0, failure = ImportFailure.IO_ERROR)
+        }
+    }
+
+    private fun readImportText(filePath: String): String {
+        val uri = Uri.parse(filePath)
+        val stream = if (uri.scheme == "file") {
+            val path = uri.path ?: throw FileNotFoundException("Invalid file URI: $uri")
+            val file = File(path)
+            if (!file.exists()) throw FileNotFoundException(path)
+            if (file.length() > Constants.Security.MAX_IMPORT_BYTES) throw BackupImportException(ImportFailure.TOO_LARGE)
+            file.inputStream()
+        } else {
+            context.contentResolver.openInputStream(uri)
+                ?: throw FileNotFoundException("Could not open input stream for $uri")
         }
 
-        ImportResult(playlistsImported, songsFound, songsFixed, songsNotFound, restoredPreferences)
+        return stream.use { it.readUtf8Limited(Constants.Security.MAX_IMPORT_BYTES) }
+    }
+
+    private fun InputStream.readUtf8Limited(maxBytes: Long): String {
+        val output = ByteArrayOutputStream()
+        val buffer = ByteArray(DEFAULT_BUFFER_SIZE)
+        var total = 0L
+        while (true) {
+            val read = read(buffer)
+            if (read < 0) break
+            total += read
+            if (total > maxBytes) throw BackupImportException(ImportFailure.TOO_LARGE)
+            output.write(buffer, 0, read)
+        }
+        return output.toString(Charsets.UTF_8.name())
+    }
+
+    private fun validateImport(container: PlaylistExportContainer) {
+        if (container.version !in MIN_IMPORT_VERSION..MAX_IMPORT_VERSION) {
+            throw BackupImportException(ImportFailure.UNSUPPORTED_VERSION)
+        }
+        if (container.playlists.size + container.videoPlaylists.size > MAX_PLAYLISTS ||
+            container.videoMarkers.size > MAX_MARKERS
+        ) {
+            throw BackupImportException(ImportFailure.LIMIT_EXCEEDED)
+        }
+
+        var mediaItems = 0L
+        container.playlists.forEach { playlist ->
+            requireSafeString(playlist.name, MAX_NAME_LENGTH)
+            requireValid(playlist.createdAt >= 0L)
+            mediaItems += playlist.songs.size
+            playlist.songs.forEach { song ->
+                requireSafePath(song.path)
+                requireSafeString(song.title, MAX_TEXT_LENGTH)
+                requireSafeString(song.artist, MAX_TEXT_LENGTH)
+                song.fileHash?.let { requireSafeString(it, MAX_HASH_LENGTH) }
+                requireValid(song.size >= 0L)
+            }
+        }
+        container.videoPlaylists.forEach { playlist ->
+            requireSafeString(playlist.name, MAX_NAME_LENGTH)
+            requireValid(playlist.createdAt >= 0L)
+            mediaItems += playlist.videos.size
+            playlist.videos.forEach { video ->
+                requireSafePath(video.path)
+                requireSafeString(video.title, MAX_TEXT_LENGTH)
+                requireValid(video.duration >= 0L && video.size >= 0L)
+            }
+        }
+        container.videoMarkers.forEach { marker ->
+            requireSafePath(marker.videoPath)
+            requireSafeString(marker.filename, MAX_NAME_LENGTH)
+            marker.fileHash?.let { requireSafeString(it, MAX_HASH_LENGTH) }
+            requireValid(
+                marker.fileSize >= 0L &&
+                    marker.durationMs >= 0L &&
+                    marker.positionMs in 0L..marker.durationMs.coerceAtLeast(0L) &&
+                    marker.createdAt >= 0L &&
+                    marker.updatedAt >= 0L
+            )
+        }
+        container.settings?.let(::validatePreferences)
+        if (mediaItems > MAX_MEDIA_ITEMS) throw BackupImportException(ImportFailure.LIMIT_EXCEEDED)
+    }
+
+    private fun validatePreferences(preferences: UserPreferences) {
+        requireValid(COLOR_PATTERN.matches(preferences.primaryColor))
+        requireValid(COLOR_PATTERN.matches(preferences.settingsCardBorderColor))
+        requireSafeOptionalPath(preferences.musicFolderPath)
+        requireSafeOptionalPath(preferences.videoFolderPath)
+        requireValid(preferences.miniPlayerProgressBarHeight.isFinite() && preferences.miniPlayerProgressBarHeight in 0f..100f)
+        requireValid(preferences.fullScreenPlayerProgressBarHeight.isFinite() && preferences.fullScreenPlayerProgressBarHeight in 0f..100f)
+        requireValid(preferences.backgroundTintFraction.isFinite() && preferences.backgroundTintFraction in 0f..1f)
+        requireValid(preferences.settingsCardBorderWidth.isFinite() && preferences.settingsCardBorderWidth in 0f..20f)
+        requireValid(preferences.videoGalleryColumns in 1..10)
+    }
+
+    private fun requireSafePath(value: String) {
+        requireSafeString(value, MAX_PATH_LENGTH)
+        requireValid(value.startsWith('/') || value.startsWith("content://") || value.startsWith("file://"))
+    }
+
+    private fun requireSafeOptionalPath(value: String) {
+        if (value.isNotBlank()) requireSafePath(value)
+    }
+
+    private fun requireValid(condition: Boolean) {
+        if (!condition) throw BackupImportException(ImportFailure.INVALID_FORMAT)
+    }
+
+    private fun requireSafeString(value: String, maxLength: Int) {
+        if (value.length > maxLength || value.indexOf('\u0000') >= 0) {
+            throw BackupImportException(ImportFailure.LIMIT_EXCEEDED)
+        }
     }
 
     private suspend fun resolveMarkerVideo(markerExport: VideoMarkerExportModel) =
@@ -377,4 +498,19 @@ class PlaylistRepositoryImpl @Inject constructor(
                 size = markerExport.fileSize,
                 duration = markerExport.durationMs
             )
+
+    private class BackupImportException(val failure: ImportFailure) : Exception(failure.name)
+
+    private companion object {
+        const val MIN_IMPORT_VERSION = 1
+        const val MAX_IMPORT_VERSION = 4
+        const val MAX_PLAYLISTS = 1_000
+        const val MAX_MEDIA_ITEMS = 100_000L
+        const val MAX_MARKERS = 50_000
+        const val MAX_NAME_LENGTH = 255
+        const val MAX_TEXT_LENGTH = 1_024
+        const val MAX_PATH_LENGTH = 4_096
+        const val MAX_HASH_LENGTH = 256
+        val COLOR_PATTERN = Regex("^#[0-9a-fA-F]{6}([0-9a-fA-F]{2})?$")
+    }
 }

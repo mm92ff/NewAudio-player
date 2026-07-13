@@ -28,6 +28,7 @@ import kotlinx.collections.immutable.ImmutableMap
 import kotlinx.collections.immutable.toImmutableList
 import kotlinx.collections.immutable.toImmutableMap
 import kotlinx.coroutines.CoroutineDispatcher
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.Flow
@@ -71,7 +72,7 @@ class PlayerViewModel @Inject constructor(
     private val _songMetadata = MutableStateFlow<ImmutableMap<String, String?>?>(null)
     private var previousRepeatMode: UserPreferences.RepeatMode = UserPreferences.RepeatMode.NONE
 
-    private val _errorEvents = Channel<UiText>()
+    private val _errorEvents = Channel<UiText>(Channel.BUFFERED)
     val errorEvents: Flow<UiText> = _errorEvents.receiveAsFlow()
 
     private val videoMarkers = mediaRepository.getPlaybackState()
@@ -116,6 +117,7 @@ class PlayerViewModel @Inject constructor(
         viewModelScope.launch(ioDispatcher) {
             runCatching { initializePlaybackSessionUseCase() }
                 .onFailure { e ->
+                    if (e is CancellationException) throw e
                     Timber.tag(TAG).e(e, "Playback session initialization failed")
                     errorRepository.log(LogLevel.ERROR, TAG, "Playback session initialization failed", e)
                     _errorEvents.trySend(UiText.StringResource(R.string.unknown_error))
@@ -125,8 +127,10 @@ class PlayerViewModel @Inject constructor(
         // Observe player errors from PlaybackState and route them through _errorEvents
         viewModelScope.launch {
             mediaRepository.getPlaybackState()
-                .collect { playbackState ->
-                    playbackState.playerError?.let { playerError ->
+                .map { playbackState -> playbackState.playerError }
+                .distinctUntilChanged()
+                .collect { playerError ->
+                    playerError?.let {
                         // Convert PlayerError to UiText based on the message content
                         // Check if this is the network error message from PlayerListenerDelegate
                         val errorUiText = if (playerError.message == "Network error") {
@@ -136,13 +140,14 @@ class PlayerViewModel @Inject constructor(
                         }
 
                         // Emit error event to UI
-                        _errorEvents.trySend(errorUiText)
-
-                        // Clear the error from PlaybackState after consuming it
-                        mediaRepository.clearPlayerError()
+                        _errorEvents.send(errorUiText)
                     }
                 }
         }
+    }
+
+    fun onPlayerErrorShown() {
+        viewModelScope.launch { mediaRepository.clearPlayerError() }
     }
 
     fun onShowSongMetadata() = safeLaunch {
@@ -225,6 +230,8 @@ class PlayerViewModel @Inject constructor(
         viewModelScope.launch(ioDispatcher) {
             try {
                 block()
+            } catch (e: CancellationException) {
+                throw e
             } catch (e: Exception) {
                 val errorMessage = e.message ?: "Unknown error in Player"
                 Timber.tag(TAG).e(e, "Action failed: %s", errorMessage)

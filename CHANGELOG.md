@@ -7,6 +7,25 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+---
+
+## [2.41-beta] — 2026-07-13
+
+### Security and reliability
+- Hardened MediaSession controller authorization and validated equalizer commands
+- Made SAF copy, move, rename, and delete provider-aware, byte-verified, transactional, and explicit about partial failures
+- Added bounded backup import validation, transactional Room import, explicit settings partial-success reporting, and disabled automatic app-data backup
+- Split audio, video, notification, and optional Bluetooth permission flows
+- Bounded album-art input, decoded at target-aware sample sizes, and recycled replaced notification bitmaps
+- Serialized playback snapshots, retained player errors until UI acknowledgement, and prevented stale refresh jobs from clearing newer state
+- Escaped `%`, `_`, and backslash in MediaStore and Room path-prefix queries
+
+### Testing and release
+- Added Room v3–v7 migration coverage with shared audio/video playlist entries and markers
+- Added a real debug-only DocumentsProvider test for Unicode, wildcard characters, nested creation, rename, stream I/O, and recursive delete
+- Added regression tests for SAF stream failures, backup byte limits, playback write ordering, error acknowledgement, refresh races, and extreme artwork dimensions
+- Added Gradle dependency locking, a checksum-pinned Gradle wrapper, R8/resource shrinking, and a CI gate for API 23, 29, 32, 33, 34, and 35
+
 ### Added
 - Dedicated Video mode with its own folder setup, media scan, browser state, playback session, and mini-player integration
 - Inline video player that replaces the video list area while keeping the mini player controls available

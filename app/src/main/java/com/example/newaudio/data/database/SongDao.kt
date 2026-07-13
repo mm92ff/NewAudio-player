@@ -52,8 +52,8 @@ interface SongDao {
         """
         DELETE FROM songs
         WHERE parentPath = :folderPath
-           OR parentPath LIKE :folderPath || '/%'
-           OR path LIKE :folderPath || '/%'
+           OR substr(parentPath, 1, length(:folderPath) + 1) = :folderPath || '/'
+           OR substr(path, 1, length(:folderPath) + 1) = :folderPath || '/'
         """
     )
     suspend fun deleteByFolder(folderPath: String)
@@ -90,8 +90,8 @@ interface SongDao {
         """
         SELECT DISTINCT parentPath
         FROM songs
-        WHERE parentPath LIKE :parentPath || '/%'
-          AND parentPath NOT LIKE :parentPath || '/%/%'
+        WHERE substr(parentPath, 1, length(:parentPath) + 1) = :parentPath || '/'
+          AND instr(substr(parentPath, length(:parentPath) + 2), '/') = 0
         """
     )
     fun observeSubFolders(parentPath: String): Flow<List<String>>
@@ -104,8 +104,8 @@ interface SongDao {
         """
         SELECT parentPath AS path, COUNT(*) AS songCount
         FROM songs
-        WHERE parentPath LIKE :parentPath || '/%'
-          AND parentPath NOT LIKE :parentPath || '/%/%'
+        WHERE substr(parentPath, 1, length(:parentPath) + 1) = :parentPath || '/'
+          AND instr(substr(parentPath, length(:parentPath) + 2), '/') = 0
         GROUP BY parentPath
         """
     )
@@ -119,7 +119,7 @@ interface SongDao {
         """
         SELECT parentPath AS path, COUNT(*) AS songCount
         FROM songs
-        WHERE parentPath LIKE :parentPath || '/%'
+        WHERE substr(parentPath, 1, length(:parentPath) + 1) = :parentPath || '/'
         GROUP BY parentPath
         """
     )
@@ -136,23 +136,23 @@ interface SongDao {
     /**
      * Heavy: Songs im ganzen Tree.
      */
-    @Query("SELECT * FROM songs WHERE path LIKE :parentPath || '/%'")
+    @Query("SELECT * FROM songs WHERE substr(path, 1, length(:parentPath) + 1) = :parentPath || '/'")
     suspend fun getAllSongsInTree(parentPath: String): List<SongEntity>
 
     /**
      * ✅ Leicht: nur Pfade im Tree (für Sync/Vergleiche/Deletes).
      */
-    @Query("SELECT path FROM songs WHERE path LIKE :parentPath || '/%'")
+    @Query("SELECT path FROM songs WHERE substr(path, 1, length(:parentPath) + 1) = :parentPath || '/'")
     suspend fun getAllSongPathsInTree(parentPath: String): List<String>
 
-    @Query("SELECT COUNT(*) FROM songs WHERE path LIKE :parentPath || '/%'")
+    @Query("SELECT COUNT(*) FROM songs WHERE substr(path, 1, length(:parentPath) + 1) = :parentPath || '/'")
     fun getSongCountInTreeFlow(parentPath: String): Flow<Int>
 
     @Query(
         """
         SELECT DISTINCT parentPath
         FROM songs
-        WHERE parentPath LIKE :parentPath || '/%'
+        WHERE substr(parentPath, 1, length(:parentPath) + 1) = :parentPath || '/'
         """
     )
     suspend fun getSubFolders(parentPath: String): List<String>

@@ -73,6 +73,9 @@ class MediaPlaybackService : MediaSessionService() {
                 session: MediaSession,
                 controller: MediaSession.ControllerInfo
             ): MediaSession.ConnectionResult {
+                if (!isAllowedController(controller)) {
+                    return MediaSession.ConnectionResult.reject()
+                }
                 val connectionResult = super.onConnect(session, controller)
                 val sessionCommands = connectionResult.availableSessionCommands
                     .buildUpon()
@@ -93,6 +96,9 @@ class MediaPlaybackService : MediaSessionService() {
                 customCommand: SessionCommand,
                 args: Bundle
             ): ListenableFuture<SessionResult> {
+                if (!isAllowedController(controller)) {
+                    return Futures.immediateFuture(SessionResult(SessionResult.RESULT_ERROR_NOT_SUPPORTED))
+                }
                 return when (customCommand.customAction) {
                     Playback.ACTION_SET_EQ_ENABLED -> {
                         effectController.setEnabled(args.getBoolean(Playback.EXTRA_EQ_ENABLED))
@@ -101,11 +107,19 @@ class MediaPlaybackService : MediaSessionService() {
                     Playback.ACTION_SET_EQ_BAND -> {
                         val bandId = args.getInt(Playback.EXTRA_BAND_ID)
                         val level = args.getFloat(Playback.EXTRA_BAND_LEVEL)
+                        val config = effectController.getConfig()
+                            ?: return Futures.immediateFuture(SessionResult(SessionResult.RESULT_ERROR_INVALID_STATE))
+                        if (!MediaSessionSecurityPolicy.isBandValueValid(config, bandId, level)) {
+                            return Futures.immediateFuture(SessionResult(SessionResult.RESULT_ERROR_BAD_VALUE))
+                        }
                         effectController.setBandLevel(bandId, level)
                         Futures.immediateFuture(SessionResult(SessionResult.RESULT_SUCCESS))
                     }
                     Playback.ACTION_SET_EQ_PRESET -> {
                         val name = args.getString(Playback.EXTRA_EQ_PRESET_NAME) ?: ""
+                        if (!MediaSessionSecurityPolicy.isPresetValid(name)) {
+                            return Futures.immediateFuture(SessionResult(SessionResult.RESULT_ERROR_BAD_VALUE))
+                        }
                         val success = effectController.setPreset(name)
                         val code = if (success) SessionResult.RESULT_SUCCESS else SessionResult.RESULT_ERROR_BAD_VALUE
                         Futures.immediateFuture(SessionResult(code))
@@ -150,6 +164,13 @@ class MediaPlaybackService : MediaSessionService() {
         return Futures.immediateFuture(SessionResult(SessionResult.RESULT_SUCCESS, resultBundle))
     }
 
+    private fun isAllowedController(controller: MediaSession.ControllerInfo): Boolean =
+        MediaSessionSecurityPolicy.isControllerAllowed(
+            appUid = applicationInfo.uid,
+            controllerUid = controller.uid,
+            isTrusted = controller.isTrusted
+        )
+
     override fun onTaskRemoved(rootIntent: Intent?) {
         val player = mediaSession?.player
         if (player == null || !player.isPlaying) {
@@ -160,7 +181,8 @@ class MediaPlaybackService : MediaSessionService() {
         super.onTaskRemoved(rootIntent)
     }
 
-    override fun onGetSession(controllerInfo: MediaSession.ControllerInfo): MediaSession? = mediaSession
+    override fun onGetSession(controllerInfo: MediaSession.ControllerInfo): MediaSession? =
+        mediaSession?.takeIf { isAllowedController(controllerInfo) }
 
     override fun onDestroy() {
         bluetoothAutoplayManager.stop()

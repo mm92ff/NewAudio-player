@@ -27,6 +27,9 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import com.example.newaudio.R
 import com.example.newaudio.ui.theme.Dimens
+import com.example.newaudio.util.Constants
+import com.example.newaudio.util.ArtworkDecodePolicy
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
@@ -41,19 +44,19 @@ fun PlayerAlbumArt(songPath: String?, modifier: Modifier = Modifier) {
             albumArt = null
             return@LaunchedEffect
         }
-        withContext(Dispatchers.IO) {
+        albumArt = withContext(Dispatchers.IO) {
             val mmr = MediaMetadataRetriever()
             try {
                 mmr.setDataSource(context, Uri.parse(songPath))
                 val data = mmr.embeddedPicture
                 if (data != null) {
-                    val bitmap = BitmapFactory.decodeByteArray(data, 0, data.size)
-                    albumArt = bitmap?.asImageBitmap()
+                    decodeSampledBitmap(data, MAX_ALBUM_ART_SIZE)?.asImageBitmap()
                 } else {
-                    albumArt = null
+                    null
                 }
             } catch (e: Exception) {
-                albumArt = null
+                if (e is CancellationException) throw e
+                null
             } finally {
                 try {
                     mmr.release()
@@ -85,4 +88,20 @@ fun PlayerAlbumArt(songPath: String?, modifier: Modifier = Modifier) {
             )
         }
     }
+}
+
+private const val MAX_ALBUM_ART_SIZE = 1_024
+
+private fun decodeSampledBitmap(data: ByteArray, targetSize: Int): android.graphics.Bitmap? {
+    if (data.size > Constants.Security.MAX_ARTWORK_BYTES) return null
+    val options = BitmapFactory.Options().apply { inJustDecodeBounds = true }
+    BitmapFactory.decodeByteArray(data, 0, data.size, options)
+    options.inSampleSize = ArtworkDecodePolicy.calculateInSampleSize(
+        options.outWidth,
+        options.outHeight,
+        targetSize,
+        targetSize
+    )
+    options.inJustDecodeBounds = false
+    return BitmapFactory.decodeByteArray(data, 0, data.size, options)
 }

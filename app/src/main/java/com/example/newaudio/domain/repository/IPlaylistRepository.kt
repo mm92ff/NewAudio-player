@@ -45,5 +45,17 @@ data class ImportResult(
     val songsFound: Int,
     val songsFixed: Int,
     val songsNotFound: Int,
-    val restoredPreferences: UserPreferences? = null
-)
+    val restoredPreferences: UserPreferences? = null,
+    val failure: ImportFailure? = null
+) {
+    val isSuccess: Boolean get() = failure == null
+}
+
+enum class ImportFailure {
+    NOT_FOUND,
+    TOO_LARGE,
+    INVALID_FORMAT,
+    UNSUPPORTED_VERSION,
+    LIMIT_EXCEEDED,
+    IO_ERROR
+}

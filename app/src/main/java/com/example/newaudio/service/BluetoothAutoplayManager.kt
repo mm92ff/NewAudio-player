@@ -1,5 +1,6 @@
 package com.example.newaudio.service
 
+import android.Manifest
 import android.bluetooth.BluetoothA2dp
 import android.bluetooth.BluetoothDevice
 import android.bluetooth.BluetoothProfile
@@ -7,7 +8,10 @@ import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
+import android.content.pm.PackageManager
 import android.net.Uri
+import android.os.Build
+import androidx.core.content.ContextCompat
 import androidx.media3.common.MediaItem
 import androidx.media3.common.MediaMetadata
 import androidx.media3.common.Player
@@ -30,6 +34,7 @@ class BluetoothAutoplayManager(
     // Cached setting to allow synchronous checks (e.g. in onTaskRemoved)
     var isAutoplayEnabled = false
         private set
+    private var receiverRegistered = false
 
     private val receiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context?, intent: Intent?) {
@@ -39,28 +44,51 @@ class BluetoothAutoplayManager(
     }
 
     fun start() {
-        val filter = IntentFilter().apply {
-            addAction(BluetoothA2dp.ACTION_CONNECTION_STATE_CHANGED)
-            addAction(BluetoothDevice.ACTION_ACL_DISCONNECTED)
-        }
-        context.registerReceiver(receiver, filter)
-
         // Monitor settings to keep the cached flag updated
         scope.launch {
             settingsRepository.userPreferences.collect {
                 isAutoplayEnabled = it.isAutoPlayOnBluetooth
+                if (isAutoplayEnabled) ensureReceiverRegistered()
             }
         }
     }
 
     fun stop() {
+        if (!receiverRegistered) return
         try {
             context.unregisterReceiver(receiver)
+            receiverRegistered = false
         } catch (e: IllegalArgumentException) {
             // Receiver might not be registered or already unregistered
             Timber.w(e, "Failed to unregister Bluetooth receiver")
         }
     }
+
+    private fun ensureReceiverRegistered() {
+        if (receiverRegistered || !hasBluetoothConnectPermission()) return
+        val filter = IntentFilter().apply {
+            addAction(BluetoothA2dp.ACTION_CONNECTION_STATE_CHANGED)
+            addAction(BluetoothDevice.ACTION_ACL_DISCONNECTED)
+        }
+        try {
+            ContextCompat.registerReceiver(
+                context,
+                receiver,
+                filter,
+                ContextCompat.RECEIVER_EXPORTED
+            )
+            receiverRegistered = true
+        } catch (error: SecurityException) {
+            Timber.e(error, "Bluetooth receiver registration was denied")
+        }
+    }
+
+    private fun hasBluetoothConnectPermission(): Boolean =
+        Build.VERSION.SDK_INT < Build.VERSION_CODES.S ||
+            ContextCompat.checkSelfPermission(
+                context,
+                Manifest.permission.BLUETOOTH_CONNECT
+            ) == PackageManager.PERMISSION_GRANTED
 
     private fun handleBluetoothAction(action: String, intent: Intent) {
         scope.launch {
@@ -99,7 +127,7 @@ class BluetoothAutoplayManager(
         val song = lastPlayed.song
 
         val mediaItem = MediaItem.Builder()
-            .setUri(Uri.parse(song.path))
+            .setUri(Uri.parse(song.contentUri.ifBlank { song.path }))
             .setMediaId(song.path)
             .setMediaMetadata(
                 MediaMetadata.Builder()

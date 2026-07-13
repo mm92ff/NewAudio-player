@@ -17,6 +17,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.text.style.TextOverflow
 import com.example.newaudio.R
 import com.example.newaudio.domain.model.MediaBrowserMode
@@ -186,7 +187,7 @@ private fun EditModeAppBar(
     TopAppBar(
         title = {
             Text(
-                text = stringResource(R.string.selected_count, selectedCount),
+                text = pluralStringResource(R.plurals.selected_count, selectedCount, selectedCount),
                 style = MaterialTheme.typography.titleLarge
             )
         },

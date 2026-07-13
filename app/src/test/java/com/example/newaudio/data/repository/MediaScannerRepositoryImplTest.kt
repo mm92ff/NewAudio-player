@@ -63,6 +63,14 @@ class MediaScannerRepositoryImplTest {
         assertEquals("Copied Audio Clip", song?.title)
     }
 
+    @Test
+    fun `SQL LIKE path escaping treats percent underscore and backslash literally`() {
+        assertEquals(
+            "Music/100\\%/Mix\\_1/Back\\\\slash/",
+            escapeSqlLikeLiteral("Music/100%/Mix_1/Back\\slash/")
+        )
+    }
+
     private fun buildRepository(): MediaScannerRepositoryImpl {
         return MediaScannerRepositoryImpl(
             context = RuntimeEnvironment.getApplication(),

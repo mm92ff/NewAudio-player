@@ -5,6 +5,11 @@
     <string name="permissions_required">Permissions required</string>
     <string name="permissions_rationale">This app needs access to your audio and video files, and notification permissions for playback controls. Please grant these permissions to continue.</string>
     <string name="grant_permissions">Grant permissions</string>
+    <string name="grant_audio_permission">Allow music access</string>
+    <string name="grant_video_permission">Allow video access</string>
+    <string name="permission_setup_error">Setup error</string>
+    <string name="permission_skip_setup">Skip setup</string>
+    <string name="bluetooth_permission_denied">Bluetooth permission is required only for Bluetooth autoplay.</string>
     <string name="permission_open_settings">Open settings</string>
     <string name="permission_folder_icon_content_description">Folder icon</string>
     <string name="storage_permission_required">Storage permission required</string>
@@ -228,7 +233,7 @@
 
     <!-- Playlist & Export -->
     <string name="playlists">Backup</string>
-    <string name="backup_description">Back up or restore playlists &amp; settings</string>
+    <string name="backup_description">Backups include playlist names, absolute media paths, app settings, video markers, and timestamps. Store them securely.</string>
     <string name="playlist_create">Create playlist</string>
     <string name="playlist_create_new">Create new playlist</string>
     <string name="playlist_name">Playlist name</string>
@@ -243,8 +248,26 @@
     <string name="export_playlists">Export</string>
     <string name="import_playlists">Import</string>
     <string name="export_success">Playlists exported successfully</string>
-    <string name="import_success">Import complete: %1$d playlists restored</string>
-    <string name="import_summary_detail">%1$d songs found, %2$d relocated songs fixed, %3$d songs not found.</string>
+    <plurals name="import_success">
+        <item quantity="one">Import complete: %1$d playlist restored</item>
+        <item quantity="other">Import complete: %1$d playlists restored</item>
+    </plurals>
+    <plurals name="import_completed_settings_failed">
+        <item quantity="one">Imported %1$d playlist, but app settings could not be restored.</item>
+        <item quantity="other">Imported %1$d playlists, but app settings could not be restored.</item>
+    </plurals>
+    <string name="import_failed_invalid">Import failed: the backup file is invalid or unsupported.</string>
+    <string name="import_failed_too_large">Import failed: the backup file exceeds the safety limit.</string>
+    <string name="import_failed_io">Import failed: the backup file could not be read.</string>
+    <string name="video_play">Play video</string>
+    <string name="video_pause">Pause video</string>
+    <string name="video_previous_marker">Previous marker</string>
+    <string name="video_next_marker">Next marker</string>
+    <string name="video_add_marker">Add marker</string>
+    <string name="video_delete_marker">Delete nearest marker</string>
+    <string name="video_marker_at">Marker at %1$s</string>
+    <string name="video_marker_move_earlier">Move marker 5 seconds earlier</string>
+    <string name="video_marker_move_later">Move marker 5 seconds later</string>
     <string name="playlist_icon_description">Open playlist manager</string>
 
     <!-- Playlist Actions -->
@@ -256,7 +279,10 @@
     <string name="playlist_duplicate_failed">Duplicate failed</string>
     <string name="playlist_remove_song_failed">Could not remove song</string>
     <string name="playlist_is_empty">Playlist is empty</string>
-    <string name="playlist_selected_deleted">%1$d items removed from playlist</string>
+    <plurals name="playlist_selected_deleted">
+        <item quantity="one">%1$d item removed from playlist</item>
+        <item quantity="other">%1$d items removed from playlist</item>
+    </plurals>
     <string name="playlist_selected_delete_failed">Error deleting selection</string>
     <string name="playlist_move_failed">Move failed</string>
     <string name="error_with_message">Error: %1$s</string>
@@ -266,6 +292,14 @@
 
     <!-- File Operations -->
     <string name="copy_failed">Error saving file (copy failed).</string>
+    <string name="file_operation_invalid">The file operation is invalid.</string>
+    <string name="file_destination_exists">A file with this name already exists.</string>
+    <string name="file_rename_failed">The file could not be renamed.</string>
+    <string name="file_delete_failed">The file could not be deleted.</string>
+    <string name="file_database_update_failed">The file changed, but the media database could not be updated.</string>
+    <string name="file_rollback_failed">The operation failed and could not be fully rolled back.</string>
+    <string name="file_source_delete_failed">The destination was created, but the source could not be removed.</string>
+    <string name="file_media_scan_failed">The file was copied, but could not be added to the media library.</string>
     <string name="create_folder">Create folder</string>
     <string name="new_folder">New folder</string>
     <string name="folder_name">Folder name</string>
@@ -273,11 +307,17 @@
     <string name="folder_create_failed">Could not create folder</string>
     <string name="folder_name_invalid">Folder name is invalid</string>
     <string name="folder_already_exists">Folder already exists</string>
-    <string name="import_completed_with_missing">Import complete:\n✅ %1$d playlists created\n🔍 %2$d songs found\n⚠️ %3$d songs not found (path changed?)</string>
+    <plurals name="import_completed_with_missing">
+        <item quantity="one">Import complete:\n✅ %1$d playlist created\n🔍 %2$d songs found\n⚠️ %3$d songs not found (path changed?)</item>
+        <item quantity="other">Import complete:\n✅ %1$d playlists created\n🔍 %2$d songs found\n⚠️ %3$d songs not found (path changed?)</item>
+    </plurals>
 
     <!-- Edit Mode / Multi-Select -->
     <string name="edit_mode">Edit mode</string>
-    <string name="selected_count">%1$d selected</string>
+    <plurals name="selected_count">
+        <item quantity="one">%1$d selected</item>
+        <item quantity="other">%1$d selected</item>
+    </plurals>
     <string name="delete_multiple_confirmation_title">Delete files</string>
     <string name="select_all">Select all</string>
 

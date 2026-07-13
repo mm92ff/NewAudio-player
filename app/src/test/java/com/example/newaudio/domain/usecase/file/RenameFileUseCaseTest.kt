@@ -4,6 +4,7 @@ import android.app.Application
 import android.content.ContentResolver
 import android.net.Uri
 import com.example.newaudio.data.database.SongDao
+import com.example.newaudio.data.database.DatabaseTransactionRunner
 import com.example.newaudio.data.database.VideoDao
 import com.example.newaudio.domain.model.FileItem
 import com.example.newaudio.domain.model.Video
@@ -30,8 +31,12 @@ class RenameFileUseCaseTest {
     private val videoDao = mockk<VideoDao>(relaxed = true)
     private val application = mockk<Application>(relaxed = true)
     private val contentResolver = mockk<ContentResolver>(relaxed = true)
+    private val storage = mockk<SafeStorageOperations>(relaxed = true)
     private val settingsRepository = FakeSettingsRepository()
     private val videoMarkerRepository = FakeVideoMarkerRepository()
+    private val transactionRunner = object : DatabaseTransactionRunner {
+        override suspend fun <T> run(block: suspend () -> T): T = block()
+    }
 
     @Before
     fun setUp() {
@@ -61,22 +66,29 @@ class RenameFileUseCaseTest {
         )
         every { application.contentResolver } returns contentResolver
         every { SafTreeAccess.parseTree(treeUri.toString()) } returns tree
+        every { SafTreeAccess.containsFsPath(tree, oldPath) } returns true
         every { SafTreeAccess.hasPersistedWritePermission(contentResolver, treeUri) } returns true
         every { SafTreeAccess.documentUriForFsPath(tree, oldPath) } returns oldDocUri
         every { SafTreeAccess.queryDisplayName(contentResolver, renamedUri) } returns "renamed.mp4"
         every { SafTreeAccess.normalizeFsPath(oldPath) } returns oldPath
         every { SafTreeAccess.joinFs("/storage/emulated/0/Movies", "renamed.mp4") } returns newPath
         every { SafTreeAccess.renameDocument(contentResolver, oldDocUri, "renamed.mp4") } returns renamedUri
+        every { storage.rename(any(), "renamed.mp4", tree) } returns SafeStorageOperations.RenameResult(
+            uri = renamedUri,
+            contentUri = renamedUri.toString(),
+            oldName = "clip.mp4",
+            actualName = "renamed.mp4"
+        )
         settingsRepository.setVideoFolderPath(treeUri.toString())
 
         val result = buildUseCase().invoke(videoFileItem(oldPath), "renamed.mp4")
 
-        assertTrue(result)
+        assertTrue(result.toString(), result.isSuccess)
         coVerify {
             videoDao.updatePath(
                 oldPath = oldPath,
                 newPath = newPath,
-                newContentUri = newPath,
+                newContentUri = renamedUri.toString(),
                 newParentPath = "/storage/emulated/0/Movies",
                 newFilename = "renamed.mp4"
             )
@@ -88,9 +100,10 @@ class RenameFileUseCaseTest {
         return RenameFileUseCase(
             songDao = songDao,
             videoDao = videoDao,
-            application = application,
+            storage = storage,
             getUserSettingsUseCase = GetUserSettingsUseCase(settingsRepository),
-            videoMarkerRepository = videoMarkerRepository
+            videoMarkerRepository = videoMarkerRepository,
+            transactionRunner = transactionRunner
         )
     }
 

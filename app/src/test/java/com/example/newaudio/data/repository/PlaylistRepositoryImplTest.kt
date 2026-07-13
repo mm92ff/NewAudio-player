@@ -4,6 +4,7 @@ import android.content.ContentResolver
 import android.content.Context
 import android.net.Uri
 import com.example.newaudio.data.database.PlaylistEntity
+import com.example.newaudio.data.database.DatabaseTransactionRunner
 import com.example.newaudio.data.database.VideoEntity
 import com.example.newaudio.data.database.VideoDao
 import com.example.newaudio.data.database.VideoMarkerEntity
@@ -15,6 +16,8 @@ import com.example.newaudio.data.database.dao.VideoPlaylistDao
 import com.example.newaudio.data.database.dao.VideoPlaylistVideoResult
 import com.example.newaudio.domain.model.UserPreferences
 import com.example.newaudio.domain.repository.PlaylistExportContainer
+import com.example.newaudio.domain.repository.ImportFailure
+import com.example.newaudio.util.Constants
 import io.mockk.coEvery
 import io.mockk.coVerify
 import io.mockk.every
@@ -31,6 +34,7 @@ import org.robolectric.RobolectricTestRunner
 import java.io.File
 import java.io.FileInputStream
 import java.io.FileOutputStream
+import java.io.ByteArrayInputStream
 
 @RunWith(RobolectricTestRunner::class)
 class PlaylistRepositoryImplTest {
@@ -42,6 +46,9 @@ class PlaylistRepositoryImplTest {
     private val videoMarkerDao = mockk<VideoMarkerDao>(relaxed = true)
     private val contentResolver = mockk<ContentResolver>(relaxed = true)
     private val context = mockk<Context>(relaxed = true)
+    private val transactionRunner = object : DatabaseTransactionRunner {
+        override suspend fun <T> run(block: suspend () -> T): T = block()
+    }
 
     private fun buildRepository(): PlaylistRepositoryImpl {
         every { context.contentResolver } returns contentResolver
@@ -50,9 +57,57 @@ class PlaylistRepositoryImplTest {
             videoPlaylistDao = videoPlaylistDao,
             videoDao = videoDao,
             videoMarkerDao = videoMarkerDao,
+            transactionRunner = transactionRunner,
             context = context,
             ioDispatcher = dispatcher
         )
+    }
+
+    @Test
+    fun `importPlaylists rejects invalid json without writing playlists`() = runTest(dispatcher) {
+        every { contentResolver.openInputStream(any<Uri>()) } returns
+            ByteArrayInputStream("not-json".toByteArray())
+
+        val result = buildRepository().importPlaylists("content://backup/invalid")
+
+        assertEquals(ImportFailure.INVALID_FORMAT, result.failure)
+        coVerify(exactly = 0) { playlistDao.importPlaylistWithSongs(any(), any()) }
+        coVerify(exactly = 0) { videoPlaylistDao.importPlaylistWithVideos(any(), any()) }
+        coVerify(exactly = 0) { videoMarkerDao.insert(any()) }
+    }
+
+    @Test
+    fun `importPlaylists rejects unsupported future format`() = runTest(dispatcher) {
+        val json = """{"version":999,"playlists":[],"videoPlaylists":[],"videoMarkers":[]}"""
+        every { contentResolver.openInputStream(any<Uri>()) } returns ByteArrayInputStream(json.toByteArray())
+
+        val result = buildRepository().importPlaylists("content://backup/future")
+
+        assertEquals(ImportFailure.UNSUPPORTED_VERSION, result.failure)
+        coVerify(exactly = 0) { playlistDao.importPlaylistWithSongs(any(), any()) }
+    }
+
+    @Test
+    fun `importPlaylists accepts valid JSON exactly at byte limit`() = runTest(dispatcher) {
+        val json = """{"version":4,"playlists":[],"videoPlaylists":[],"videoMarkers":[]}"""
+        val bytes = json.padEnd(Constants.Security.MAX_IMPORT_BYTES.toInt(), ' ').toByteArray()
+        every { contentResolver.openInputStream(any<Uri>()) } returns ByteArrayInputStream(bytes)
+
+        val result = buildRepository().importPlaylists("content://backup/exact-limit")
+
+        assertTrue(result.isSuccess)
+    }
+
+    @Test
+    fun `importPlaylists rejects stream one byte above limit before writes`() = runTest(dispatcher) {
+        val bytes = ByteArray(Constants.Security.MAX_IMPORT_BYTES.toInt() + 1) { ' '.code.toByte() }
+        every { contentResolver.openInputStream(any<Uri>()) } returns ByteArrayInputStream(bytes)
+
+        val result = buildRepository().importPlaylists("content://backup/over-limit")
+
+        assertEquals(ImportFailure.TOO_LARGE, result.failure)
+        coVerify(exactly = 0) { playlistDao.importPlaylistWithSongs(any(), any()) }
+        coVerify(exactly = 0) { videoPlaylistDao.importPlaylistWithVideos(any(), any()) }
     }
 
     @Test

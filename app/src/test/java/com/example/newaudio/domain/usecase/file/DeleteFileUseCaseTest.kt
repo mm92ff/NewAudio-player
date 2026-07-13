@@ -5,6 +5,7 @@ import android.content.ContentResolver
 import android.net.Uri
 import com.example.newaudio.data.database.SongDao
 import com.example.newaudio.data.database.VideoDao
+import com.example.newaudio.data.database.DatabaseTransactionRunner
 import com.example.newaudio.domain.model.FileItem
 import com.example.newaudio.domain.model.Song
 import com.example.newaudio.domain.model.Video
@@ -32,6 +33,9 @@ class DeleteFileUseCaseTest {
     private val contentResolver = mockk<ContentResolver>(relaxed = true)
     private val settingsRepository = FakeSettingsRepository()
     private val videoMarkerRepository = FakeVideoMarkerRepository()
+    private val transactionRunner = object : DatabaseTransactionRunner {
+        override suspend fun <T> run(block: suspend () -> T): T = block()
+    }
 
     @Test
     fun `deleting video file removes video entry from database`() = runTest {
@@ -44,7 +48,7 @@ class DeleteFileUseCaseTest {
         try {
             val result = useCase(tempDir.absolutePath, fileItem)
 
-            assertTrue(result)
+            assertTrue(result.isSuccess)
             coVerify(exactly = 1) { videoDao.deleteByPath(videoFile.absolutePath) }
             coVerify(exactly = 0) { songDao.deleteByPath(videoFile.absolutePath) }
             assertTrue(videoMarkerRepository.deletedVideos.contains(videoFile.absolutePath))
@@ -70,7 +74,7 @@ class DeleteFileUseCaseTest {
         try {
             val result = useCase(requireNotNull(tempDir.parentFile).absolutePath, folderItem)
 
-            assertTrue(result)
+            assertTrue(result.isSuccess)
             assertTrue(!tempDir.exists())
             coVerify(exactly = 1) { songDao.deleteByFolder(tempDir.absolutePath) }
             coVerify(exactly = 1) { videoDao.deleteByFolder(tempDir.absolutePath) }
@@ -84,9 +88,10 @@ class DeleteFileUseCaseTest {
         return DeleteFileUseCase(
             songDao = songDao,
             videoDao = videoDao,
-            application = application,
+            storage = SafeStorageOperations(application),
             getUserSettingsUseCase = GetUserSettingsUseCase(settingsRepository),
-            videoMarkerRepository = videoMarkerRepository
+            videoMarkerRepository = videoMarkerRepository,
+            transactionRunner = transactionRunner
         )
     }
 
@@ -101,7 +106,7 @@ class DeleteFileUseCaseTest {
         try {
             val result = useCase(tempDir.absolutePath, fileItem)
 
-            assertTrue(result)
+            assertTrue(result.isSuccess)
             coVerify(exactly = 1) { songDao.deleteByPath(audioFile.absolutePath) }
             coVerify(exactly = 0) { videoDao.deleteByPath(audioFile.absolutePath) }
             assertTrue(videoMarkerRepository.deletedVideos.isEmpty())

@@ -16,6 +16,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -178,7 +179,7 @@ fun PlaylistScreen(
                             PlaylistMediaTab.AUDIO -> uiState.selectedSongs.size + uiState.selectedPlaylistIds.size
                             PlaylistMediaTab.VIDEO -> videoUiState.selectedVideos.size + videoUiState.selectedPlaylistIds.size
                         }
-                        Text(stringResource(R.string.selected_count, totalSelected))
+                        Text(pluralStringResource(R.plurals.selected_count, totalSelected, totalSelected))
                     },
                     navigationIcon = {
                         IconButton(onClick = {

@@ -5,6 +5,8 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.derivedStateOf
@@ -13,6 +15,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.media3.common.Player as MediaPlayer
@@ -77,6 +80,8 @@ fun MainAppScreen(
     fileBrowserViewModel: FileBrowserViewModel = hiltViewModel()
 ) {
     val navController = rememberNavController()
+    val context = LocalContext.current
+    val playerSnackbarHostState = remember { SnackbarHostState() }
     val navBackStackEntry by navController.currentBackStackEntryAsState()
 
     var showConsole by remember { mutableStateOf(false) }
@@ -124,6 +129,13 @@ fun MainAppScreen(
         }
     }
 
+    LaunchedEffect(playerViewModel) {
+        playerViewModel.errorEvents.collect { error ->
+            playerSnackbarHostState.showSnackbar(error.asString(context))
+            playerViewModel.onPlayerErrorShown()
+        }
+    }
+
     LaunchedEffect(
         isVideoFullscreen,
         videoFullscreenState.player,
@@ -152,6 +164,7 @@ fun MainAppScreen(
     }
 
     Scaffold(
+        snackbarHost = { SnackbarHost(playerSnackbarHostState) },
         bottomBar = {
             if (showMiniPlayer && !isVideoFullscreen) {
                 MiniPlayerBottomBar(
@@ -211,7 +224,6 @@ fun MainAppScreen(
                     FullScreenPlayer(
                         uiState = staticUiState,
                         currentPositionFlow = positionFlow,
-                        errorEvents = playerViewModel.errorEvents,
                         onBackClicked = { navController.popBackStack() },
                         onPlayPauseClicked = playerViewModel::onPlayPauseToggle,
                         onSkipPreviousClicked = playerViewModel::onSkipPrevious,
@@ -235,6 +247,7 @@ fun MainAppScreen(
                     val playlistViewModel: PlaylistViewModel = hiltViewModel()
                     PlaylistScreen(
                         viewModel = playlistViewModel,
+                        playerViewModel = playerViewModel,
                         onBackClick = { navController.popBackStack() },
                         onPlaySongs = { songs, startIndex ->
                             playerViewModel.onPlayPlaylist(songs, startIndex)

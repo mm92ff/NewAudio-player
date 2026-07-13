@@ -3,6 +3,7 @@ package com.example.newaudio.domain.usecase.file
 import android.app.Application
 import android.content.ContentResolver
 import com.example.newaudio.data.database.SongDao
+import com.example.newaudio.data.database.DatabaseTransactionRunner
 import com.example.newaudio.data.database.VideoDao
 import com.example.newaudio.domain.model.FileItem
 import com.example.newaudio.domain.model.Song
@@ -20,6 +21,10 @@ import java.io.File
 import java.nio.file.Files
 
 class DeleteMultipleFilesUseCaseTest {
+
+    private val transactionRunner = object : DatabaseTransactionRunner {
+        override suspend fun <T> run(block: suspend () -> T): T = block()
+    }
 
     private val songDao = mockk<SongDao>(relaxed = true)
     private val videoDao = mockk<VideoDao>(relaxed = true)
@@ -40,7 +45,7 @@ class DeleteMultipleFilesUseCaseTest {
         try {
             val result = useCase(tempDir.absolutePath, items)
 
-            assertTrue(result)
+            assertTrue(result.isSuccess)
             coVerify(exactly = 1) {
                 videoDao.deleteByPaths(listOf(first.absolutePath, second.absolutePath))
             }
@@ -77,7 +82,7 @@ class DeleteMultipleFilesUseCaseTest {
         try {
             val result = useCase(tempDir.absolutePath, items)
 
-            assertTrue(result)
+            assertTrue(result.isSuccess)
             assertTrue(!firstFolder.exists())
             assertTrue(!secondFolder.exists())
             coVerify(exactly = 1) { songDao.deleteByFolder(firstFolder.absolutePath) }
@@ -95,9 +100,10 @@ class DeleteMultipleFilesUseCaseTest {
         return DeleteMultipleFilesUseCase(
             songDao = songDao,
             videoDao = videoDao,
-            application = application,
+            storage = SafeStorageOperations(application),
             getUserSettingsUseCase = GetUserSettingsUseCase(settingsRepository),
-            videoMarkerRepository = videoMarkerRepository
+            videoMarkerRepository = videoMarkerRepository,
+            transactionRunner = transactionRunner
         )
     }
 
@@ -113,7 +119,7 @@ class DeleteMultipleFilesUseCaseTest {
         try {
             val result = useCase(tempDir.absolutePath, items)
 
-            assertTrue(result)
+            assertTrue(result.isSuccess)
             coVerify(exactly = 1) {
                 songDao.deleteByPaths(listOf(first.absolutePath, second.absolutePath))
             }

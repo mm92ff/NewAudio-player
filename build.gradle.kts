@@ -6,3 +6,9 @@ plugins {
     alias(libs.plugins.ksp) apply false
     id("com.google.dagger.hilt.android") version "2.51.1" apply false
 }
+
+allprojects {
+    dependencyLocking {
+        lockAllConfigurations()
+    }
+}

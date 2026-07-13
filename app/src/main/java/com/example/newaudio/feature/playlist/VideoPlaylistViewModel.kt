@@ -231,7 +231,12 @@ class VideoPlaylistViewModel @Inject constructor(
                     videoPlaylistRepository.deleteVideoPlaylists(selectedPlaylists.toList())
                 }
                 _expandedIds.update { current -> current.removeAll(selectedPlaylists) }
-                _sideEffects.send(PlaylistSideEffect.ShowSnackbar(UiText.StringResource(R.string.playlist_selected_deleted, selectedVideos.size + selectedPlaylists.size)))
+                val deletedCount = selectedVideos.size + selectedPlaylists.size
+                _sideEffects.send(
+                    PlaylistSideEffect.ShowSnackbar(
+                        UiText.PluralResource(R.plurals.playlist_selected_deleted, deletedCount, deletedCount)
+                    )
+                )
                 toggleEditMode()
             } catch (e: Exception) {
                 Timber.e(e, "Error in removeSelected for video playlists")

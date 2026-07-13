@@ -79,6 +79,7 @@ class FileBrowserViewModel @Inject constructor(
 
     private val pathFlow = MutableStateFlow("")
     private var refreshJob: Job? = null
+    private var refreshGeneration: Long = 0L
 
     private val dialogController = FileBrowserDialogController(
         uiState = _uiState,
@@ -168,6 +169,7 @@ class FileBrowserViewModel @Inject constructor(
             return
         }
 
+        val generation = ++refreshGeneration
         refreshJob?.cancel()
         refreshJob = viewModelScope.launch {
             if (!isAutoRefresh) {
@@ -180,12 +182,13 @@ class FileBrowserViewModel @Inject constructor(
                     getSortedFileTreeUseCase.invalidate(currentPath, _uiState.value.browserMode)
                 }
             } catch (e: Exception) {
+                if (e is kotlinx.coroutines.CancellationException) throw e
                 Timber.tag(DEBUG_TAG).e(e, "Error during refresh")
                 if (!isAutoRefresh) {
                     _uiState.update { it.copy(errorRes = UiText.StringResource(R.string.error_loading)) }
                 }
             } finally {
-                if (!isAutoRefresh) {
+                if (!isAutoRefresh && generation == refreshGeneration) {
                     _uiState.update { it.copy(isRefreshing = false) }
                 }
             }

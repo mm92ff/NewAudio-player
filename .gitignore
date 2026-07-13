@@ -12,10 +12,11 @@ app/build/
 
 # Gradle
 .gradle/
-gradle-wrapper.jar
 
 # Local configuration (contains SDK path, signing passwords, etc.)
 local.properties
+signing.local.properties
+signing.local.properties.example
 keystore.properties
 *.jks
 *.keystore

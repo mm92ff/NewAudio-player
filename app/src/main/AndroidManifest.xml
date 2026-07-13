@@ -8,6 +8,7 @@
 
     <uses-permission android:name="android.permission.READ_MEDIA_AUDIO" />
     <uses-permission android:name="android.permission.READ_MEDIA_VIDEO" />
+    <uses-permission android:name="android.permission.READ_MEDIA_VISUAL_USER_SELECTED" />
 
     <uses-permission
         android:name="android.permission.READ_EXTERNAL_STORAGE"
@@ -23,17 +24,13 @@
 
     <uses-permission android:name="android.permission.MODIFY_AUDIO_SETTINGS" />
 
-    <uses-permission android:name="android.permission.INTERNET" />
-
     <uses-permission android:name="android.permission.BLUETOOTH" android:maxSdkVersion="30" />
-    <uses-permission android:name="android.permission.BLUETOOTH_ADMIN" android:maxSdkVersion="30" />
 
     <uses-permission android:name="android.permission.BLUETOOTH_CONNECT" />
-    <uses-permission android:name="android.permission.BLUETOOTH_SCAN" />
 
     <application
         android:name=".MikiplayerApp"
-        android:allowBackup="true"
+        android:allowBackup="false"
         android:dataExtractionRules="@xml/data_extraction_rules"
         android:fullBackupContent="@xml/backup_rules"
         android:icon="@mipmap/ic_launcher"
@@ -57,31 +54,6 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
 
-            <intent-filter>
-                <action android:name="android.intent.action.VIEW" />
-                <category android:name="android.intent.category.DEFAULT" />
-                <category android:name="android.intent.category.BROWSABLE" />
-                <data android:mimeType="audio/*" />
-                <data android:mimeType="video/*" />
-                <data android:mimeType="application/ogg" />
-                <data android:mimeType="application/x-ogg" />
-            </intent-filter>
-
-            <intent-filter>
-                <action android:name="android.intent.action.OPEN_DOCUMENT_TREE" />
-                <category android:name="android.intent.category.DEFAULT" />
-            </intent-filter>
-
-            <intent-filter>
-                <action android:name="android.intent.action.VIEW" />
-                <category android:name="android.intent.category.DEFAULT" />
-                <category android:name="android.intent.category.BROWSABLE" />
-                <data android:scheme="http" />
-                <data android:scheme="https" />
-                <data android:mimeType="audio/*" />
-                <data android:mimeType="video/*" />
-            </intent-filter>
-
             <meta-data
                 android:name="android.media.metadata.METADATA_KEY_TITLE"
                 android:resource="@string/app_name" />
@@ -92,43 +64,16 @@
             android:exported="true"
             android:foregroundServiceType="mediaPlayback"
             android:enabled="true"
-            android:isolatedProcess="false">
+            android:isolatedProcess="false"
+            tools:ignore="ExportedService">
+            <!-- Export is required for Media3/system controllers. The service rejects all
+                 controllers that are neither the app UID nor trusted by MediaSession. -->
 
             <intent-filter>
                 <action android:name="androidx.media3.session.MediaSessionService" />
                 <action android:name="android.media.browse.MediaBrowserService" />
             </intent-filter>
         </service>
-
-        <receiver
-            android:name=".receiver.MediaButtonReceiver"
-            android:exported="true">
-
-            <intent-filter>
-                <action android:name="android.intent.action.MEDIA_BUTTON" />
-                <action android:name="android.intent.action.HEADSET_PLUG" />
-            </intent-filter>
-        </receiver>
-
-        <receiver
-            android:name=".receiver.AudioNoisyReceiver"
-            android:exported="false">
-
-            <intent-filter>
-                <action android:name="android.media.AUDIO_BECOMING_NOISY" />
-            </intent-filter>
-        </receiver>
-
-        <receiver
-            android:name=".receiver.BootCompleteReceiver"
-            android:exported="false">
-
-            <intent-filter>
-                <action android:name="android.intent.action.BOOT_COMPLETED" />
-                <action android:name="android.intent.action.QUICKBOOT_POWERON" />
-                <action android:name="com.htc.intent.action.QUICKBOOT_POWERON" />
-            </intent-filter>
-        </receiver>
 
         <provider
             android:name="androidx.core.content.FileProvider"

@@ -28,6 +28,7 @@ data class VideoPlaylistEntity(
             entity = VideoEntity::class,
             parentColumns = ["path"],
             childColumns = ["videoPath"],
+            onUpdate = ForeignKey.CASCADE,
             onDelete = ForeignKey.CASCADE
         )
     ],

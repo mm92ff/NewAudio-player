@@ -31,6 +31,13 @@ import java.util.concurrent.atomic.AtomicLong
 import javax.inject.Inject
 import javax.inject.Singleton
 
+internal fun escapeSqlLikeLiteral(value: String): String = buildString(value.length) {
+    value.forEach { character ->
+        if (character == '\\' || character == '%' || character == '_') append('\\')
+        append(character)
+    }
+}
+
 @Singleton
 class MediaScannerRepositoryImpl @Inject constructor(
     @ApplicationContext private val context: Context,
@@ -474,10 +481,12 @@ class MediaScannerRepositoryImpl @Inject constructor(
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
             val relativePath = convertToRelativePath(rootAbsPathOrNull)
             if (relativePath != null) {
-                return "$baseSelection AND ${MediaStore.Audio.Media.RELATIVE_PATH} LIKE ?" to arrayOf("$relativePath%")
+                return "$baseSelection AND ${MediaStore.Audio.Media.RELATIVE_PATH} LIKE ? ESCAPE '\\'" to
+                    arrayOf("${escapeSqlLikeLiteral(relativePath)}%")
             }
         }
-        return "$baseSelection AND ${MediaStore.Audio.Media.DATA} LIKE ?" to arrayOf("$rootAbsPathOrNull/%")
+        return "$baseSelection AND ${MediaStore.Audio.Media.DATA} LIKE ? ESCAPE '\\'" to
+            arrayOf("${escapeSqlLikeLiteral(rootAbsPathOrNull)}/%")
     }
 
     private fun buildVideoSelection(rootAbsPathOrNull: String?): Pair<String?, Array<String>?> {
@@ -486,10 +495,12 @@ class MediaScannerRepositoryImpl @Inject constructor(
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
             val relativePath = convertToRelativePath(rootAbsPathOrNull)
             if (relativePath != null) {
-                return "${MediaStore.Video.Media.RELATIVE_PATH} LIKE ?" to arrayOf("$relativePath%")
+                return "${MediaStore.Video.Media.RELATIVE_PATH} LIKE ? ESCAPE '\\'" to
+                    arrayOf("${escapeSqlLikeLiteral(relativePath)}%")
             }
         }
-        return "${MediaStore.Video.Media.DATA} LIKE ?" to arrayOf("$rootAbsPathOrNull/%")
+        return "${MediaStore.Video.Media.DATA} LIKE ? ESCAPE '\\'" to
+            arrayOf("${escapeSqlLikeLiteral(rootAbsPathOrNull)}/%")
     }
 
     private fun convertToRelativePath(absolutePath: String): String? {

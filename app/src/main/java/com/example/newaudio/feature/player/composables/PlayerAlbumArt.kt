@@ -24,8 +24,10 @@ import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import com.example.newaudio.R
+import com.example.newaudio.ui.NewAudioTestTags
 import com.example.newaudio.ui.theme.Dimens
 import com.example.newaudio.util.Constants
 import com.example.newaudio.util.ArtworkDecodePolicy
@@ -37,11 +39,14 @@ import kotlinx.coroutines.withContext
 fun PlayerAlbumArt(songPath: String?, modifier: Modifier = Modifier) {
     val context = LocalContext.current
     var albumArt by remember(songPath) { mutableStateOf<ImageBitmap?>(null) }
+    var artworkLoadComplete by remember(songPath) { mutableStateOf(songPath == null) }
 
     // Load album art asynchronously
     LaunchedEffect(songPath) {
+        artworkLoadComplete = false
         if (songPath == null) {
             albumArt = null
+            artworkLoadComplete = true
             return@LaunchedEffect
         }
         albumArt = withContext(Dispatchers.IO) {
@@ -65,6 +70,7 @@ fun PlayerAlbumArt(songPath: String?, modifier: Modifier = Modifier) {
                 }
             }
         }
+        artworkLoadComplete = true
     }
 
     val art = albumArt
@@ -76,7 +82,9 @@ fun PlayerAlbumArt(songPath: String?, modifier: Modifier = Modifier) {
             Image(
                 bitmap = art,
                 contentDescription = stringResource(R.string.player_album_art_content_description),
-                modifier = Modifier.fillMaxSize(),
+                modifier = Modifier
+                    .fillMaxSize()
+                    .testTag(NewAudioTestTags.ALBUM_ART_READY),
                 contentScale = ContentScale.Crop
             )
         } else {
@@ -85,6 +93,13 @@ fun PlayerAlbumArt(songPath: String?, modifier: Modifier = Modifier) {
                 contentDescription = stringResource(R.string.player_album_art_placeholder_icon),
                 modifier = Modifier.size(Dimens.FullScreenPlayer_AlbumArtIconSize),
                 tint = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        }
+        if (artworkLoadComplete) {
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .testTag(NewAudioTestTags.ALBUM_ART_LOAD_COMPLETE)
             )
         }
     }

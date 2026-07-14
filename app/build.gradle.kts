@@ -18,6 +18,7 @@ android {
         versionCode = 241
         versionName = "2.41-beta"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+        buildConfigField("boolean", "BENCHMARK", "false")
 
         vectorDrawables {
             useSupportLibrary = true
@@ -25,13 +26,26 @@ android {
     }
 
     buildTypes {
+        debug {
+            buildConfigField("boolean", "BENCHMARK", "false")
+        }
+
         release {
             isMinifyEnabled = true
             isShrinkResources = true
+            buildConfigField("boolean", "BENCHMARK", "false")
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
             )
+        }
+
+        create("benchmark") {
+            initWith(getByName("release"))
+            signingConfig = signingConfigs.getByName("debug")
+            matchingFallbacks += listOf("release")
+            isDebuggable = false
+            buildConfigField("boolean", "BENCHMARK", "true")
         }
     }
 
@@ -57,6 +71,17 @@ android {
 
     sourceSets {
         getByName("androidTest").assets.srcDir("$projectDir/schemas")
+    }
+}
+
+val composeCompilerReportsEnabled = providers.gradleProperty("newaudio.composeCompilerReports")
+    .map(String::toBoolean)
+    .orElse(false)
+
+if (composeCompilerReportsEnabled.get()) {
+    composeCompiler {
+        reportsDestination = layout.buildDirectory.dir("reports/compose-compiler")
+        metricsDestination = layout.buildDirectory.dir("reports/compose-compiler")
     }
 }
 
@@ -138,4 +163,8 @@ dependencies {
     androidTestImplementation("androidx.room:room-testing:$roomVersion")
     androidTestImplementation(libs.androidx.compose.ui.test.junit4)
     debugImplementation(libs.androidx.compose.ui.test.manifest)
+
+    // Performance tooling is intentionally isolated from debug and release.
+    "benchmarkImplementation"(libs.androidx.compose.runtime.tracing)
+    "benchmarkImplementation"(libs.androidx.profileinstaller)
 }

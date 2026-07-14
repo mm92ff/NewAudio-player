@@ -9,12 +9,17 @@ concurrency:
   group: android-${{ github.ref }}
   cancel-in-progress: true
 
+permissions:
+  contents: read
+
 jobs:
   verify:
     runs-on: ubuntu-latest
     timeout-minutes: 45
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
       - uses: actions/setup-java@v4
         with:
           distribution: temurin
@@ -24,11 +29,66 @@ jobs:
         run: |
           chmod +x gradlew
           ./gradlew --no-daemon \
+            -Pnewaudio.composeCompilerReports=true \
             :app:testDebugUnitTest \
+            :app:testBenchmarkUnitTest \
             :app:lintDebug \
             :app:assembleDebug \
             :app:assembleRelease \
-            :app:assembleDebugAndroidTest
+            :app:assembleDebugAndroidTest \
+            :app:assembleBenchmark \
+            :benchmark:assembleBenchmark \
+            cyclonedxBom
+      - name: Verify benchmark tooling is absent from release
+        shell: pwsh
+        run: ./performance/scripts/verify-release-isolation.ps1
+      - name: Verify performance host tools
+        shell: pwsh
+        run: |
+          ./benchmark/tools/generate-fixtures.ps1 -Check
+          ./performance/scripts/verify-provenance-contract.ps1
+          ./performance/scripts/verify-runner-contracts.ps1
+          ./performance/scripts/normalize-metrics.ps1 -SelfTest
+          ./performance/scripts/aggregate-series.ps1 -SelfTest
+          ./performance/scripts/compare-baseline.ps1 -SelfTest
+          ./performance/scripts/summarize-trace.ps1 -SelfTest
+      - name: Reject tracked secrets and signing material
+        shell: pwsh
+        run: ./performance/scripts/verify-repository-hygiene.ps1
+      - name: Scan repository history for secrets
+        uses: docker://ghcr.io/gitleaks/gitleaks:v8.27.2
+        with:
+          args: detect --source=/github/workspace --redact --no-banner --exit-code=1
+      - name: Stage resolved Gradle dependency SBOM
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force performance/results/ci | Out-Null
+          Copy-Item build/reports/cyclonedx/bom.json performance/results/ci/newaudio-sbom.cdx.json
+      - name: Scan generated SBOM for known vulnerabilities
+        uses: anchore/scan-action@v7
+        with:
+          sbom: performance/results/ci/newaudio-sbom.cdx.json
+          fail-build: true
+          severity-cutoff: high
+          output-format: json
+          output-file: performance/results/ci/grype-report.json
+          cache-db: false
+      - name: Upload SBOM, vulnerability database evidence and compiler diagnostics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: newaudio-build-evidence
+          if-no-files-found: warn
+          retention-days: 14
+          path: |
+            performance/results/ci/newaudio-sbom.cdx.json
+            performance/results/ci/grype-report.json
+            app/build/reports/compose-compiler/**
+      - name: Review dependency vulnerabilities
+        if: github.event_name == 'pull_request'
+        uses: actions/dependency-review-action@v4
+        with:
+          fail-on-severity: high
 
   instrumentation:
     runs-on: ubuntu-latest

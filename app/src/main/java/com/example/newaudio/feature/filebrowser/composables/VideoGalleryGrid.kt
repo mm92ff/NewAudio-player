@@ -20,7 +20,7 @@ import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.GridItemSpan
 import androidx.compose.foundation.lazy.grid.LazyGridState
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
-import androidx.compose.foundation.lazy.grid.items
+import androidx.compose.foundation.lazy.grid.itemsIndexed
 import androidx.compose.foundation.lazy.grid.rememberLazyGridState
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Folder
@@ -36,7 +36,9 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
@@ -46,6 +48,7 @@ import coil.ImageLoader
 import com.example.newaudio.R
 import com.example.newaudio.domain.model.FileItem
 import com.example.newaudio.domain.model.UserPreferences
+import com.example.newaudio.ui.NewAudioTestTags
 import com.example.newaudio.ui.theme.Dimens
 
 @OptIn(ExperimentalFoundationApi::class)
@@ -62,6 +65,7 @@ fun VideoGalleryGrid(
     topSpacerHeight: Dp,
     initialScrollKey: String,
     imageLoader: ImageLoader,
+    onFirstInteractiveContentPositioned: () -> Unit,
     onItemClick: (FileItem) -> Unit,
     onItemLongClick: (FileItem) -> Unit,
     onEmptyAreaLongClick: () -> Unit
@@ -74,7 +78,9 @@ fun VideoGalleryGrid(
 
     LazyVerticalGrid(
         columns = GridCells.Fixed(galleryColumns.coerceIn(2, 4)),
-        modifier = Modifier.fillMaxSize(),
+        modifier = Modifier
+            .fillMaxSize()
+            .testTag("${NewAudioTestTags.BROWSER_GALLERY}_${galleryColumns.coerceIn(2, 4)}"),
         state = gridState,
         contentPadding = PaddingValues(8.dp),
         horizontalArrangement = androidx.compose.foundation.layout.Arrangement.spacedBy(8.dp),
@@ -99,10 +105,10 @@ fun VideoGalleryGrid(
             }
         }
 
-        items(
+        itemsIndexed(
             items = items,
-            key = { it.path }
-        ) { item ->
+            key = { _, item -> item.path }
+        ) { index, item ->
             val isActive = remember(item, activeVideoPath) {
                 when (item) {
                     is FileItem.VideoFile -> item.video.path == activeVideoPath
@@ -123,6 +129,15 @@ fun VideoGalleryGrid(
                 galleryColumns = galleryColumns.coerceIn(2, 4),
                 showVideoNames = showVideoNames,
                 imageLoader = imageLoader,
+                modifier = if (index == 0) {
+                    Modifier.onGloballyPositioned { coordinates ->
+                        if (coordinates.size.width > 0 && coordinates.size.height > 0) {
+                            onFirstInteractiveContentPositioned()
+                        }
+                    }
+                } else {
+                    Modifier
+                },
                 onClick = { onItemClick(item) },
                 onLongClick = { onItemLongClick(item) }
             )
@@ -145,6 +160,7 @@ private fun VideoGalleryTile(
     galleryColumns: Int,
     showVideoNames: Boolean,
     imageLoader: ImageLoader,
+    modifier: Modifier = Modifier,
     onClick: () -> Unit,
     onLongClick: () -> Unit
 ) {
@@ -158,7 +174,7 @@ private fun VideoGalleryTile(
     }
 
     Box(
-        modifier = Modifier
+        modifier = modifier
             .fillMaxWidth()
             .aspectRatio(1f)
             .clip(shape)

@@ -76,6 +76,8 @@ cd NewAudio-player
 
 Open the project in Android Studio and run on a device or emulator with API 23 or newer.
 
+For local emulator tests, use the dedicated `newaudio` AVD (Android 15 / API 35, 12 GB storage, 4 GB RAM). See [EMULATOR.md](EMULATOR.md) for its configuration and startup command.
+
 ### Build APK
 
 ```bash

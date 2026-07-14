@@ -25,11 +25,14 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
+import com.example.newaudio.BuildConfig
 import com.example.newaudio.R
+import com.example.newaudio.ui.NewAudioTestTags
 import com.example.newaudio.util.formatDurationMMSS
 import kotlin.math.max
 import kotlin.math.min
@@ -68,7 +71,21 @@ fun PlayerSeekBar(
 
     val seekBarDesc = stringResource(R.string.seek_bar_description)
 
-    Column(modifier = modifier) {
+    Column(
+        modifier = modifier.then(
+            if (BuildConfig.BENCHMARK) {
+                Modifier
+                    .testTag(NewAudioTestTags.AUDIO_POSITION)
+                    .semantics {
+                        contentDescription =
+                            NewAudioTestTags.AUDIO_POSITION_DESCRIPTION_PREFIX +
+                                currentPosition.coerceAtLeast(0L)
+                    }
+            } else {
+                Modifier
+            }
+        )
+    ) {
         Slider(
             value = sliderValue,
             onValueChange = {

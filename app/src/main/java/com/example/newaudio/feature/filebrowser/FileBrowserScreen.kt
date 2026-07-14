@@ -22,6 +22,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.zIndex
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
@@ -33,8 +35,11 @@ import com.example.newaudio.domain.model.MediaBrowserMode
 import com.example.newaudio.domain.model.Playlist
 import com.example.newaudio.domain.model.VideoPlaylist
 import com.example.newaudio.feature.filebrowser.composables.*
+import com.example.newaudio.ui.BenchmarkPlaybackPositionProbe
+import com.example.newaudio.ui.NewAudioTestTags
 import com.example.newaudio.ui.theme.Dimens
 import kotlinx.coroutines.launch
+import java.io.File
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
 @Composable
@@ -86,6 +91,7 @@ fun FileBrowserScreen(
     onAddToVideoPlaylistMultipleConfirmed: (VideoPlaylist, List<FileItem.VideoFile>) -> Unit,
     onCreatePlaylistAndAdd: (String) -> Unit,
     onCreateVideoPlaylistAndAdd: (String) -> Unit,
+    onFirstInteractiveContentPositioned: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     val snackbarHostState = remember { SnackbarHostState() }
@@ -191,7 +197,7 @@ fun FileBrowserScreen(
     BackHandler(enabled = effectiveCanNavigateBack && !uiState.isEditMode) { effectiveNavigateUp() }
 
     Scaffold(
-        modifier = modifier,
+        modifier = modifier.testTag(NewAudioTestTags.BROWSER_ROOT),
         snackbarHost = { SnackbarHost(snackbarHostState) },
         topBar = {
             if (!uiState.oneHandedMode) {
@@ -337,12 +343,16 @@ fun FileBrowserScreen(
                 if (shouldShowInlineVideo) {
                     InlineVideoPlayer(
                         player = player,
+                        currentVideoTitle = uiState.activeVideoPath
+                            ?.let { path -> File(path).nameWithoutExtension },
                         onSwipeNext = onInlineVideoSwipeNext,
                         onSwipePrevious = onInlineVideoSwipePrevious,
                         onToggleFullscreen = onToggleVideoFullscreen,
                         attachPlayerDirectly = !isVideoFullscreen,
                         onPlayerViewChanged = onInlinePlayerViewChanged,
-                        modifier = Modifier.fillMaxSize()
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .testTag(NewAudioTestTags.INLINE_VIDEO)
                     )
                 } else if (uiState.fileItems.isEmpty() && !uiState.isLoading) {
                     Box(
@@ -377,7 +387,8 @@ fun FileBrowserScreen(
                         onAddToVideoPlaylistClick = onAddToVideoPlaylistClick,
                         onItemLongClick = onItemLongClick,
                         onEmptyAreaLongClick = onEmptyAreaLongClick,
-                        onToggleRepeatMode = onToggleRepeatMode
+                        onToggleRepeatMode = onToggleRepeatMode,
+                        onFirstInteractiveContentPositioned = onFirstInteractiveContentPositioned
                     )
                 }
 
@@ -469,6 +480,7 @@ fun FileBrowserScreen(
 @Composable
 private fun InlineVideoPlayer(
     player: Player,
+    currentVideoTitle: String?,
     onSwipeNext: () -> Unit,
     onSwipePrevious: () -> Unit,
     onToggleFullscreen: () -> Unit,
@@ -478,7 +490,36 @@ private fun InlineVideoPlayer(
 ) {
     var totalDragX by remember { mutableFloatStateOf(0f) }
     var currentPlayerView by remember { mutableStateOf<PlayerView?>(null) }
+    var firstFrameRendered by remember(player, attachPlayerDirectly) { mutableStateOf(false) }
+    var playbackReady by remember(player, attachPlayerDirectly) { mutableStateOf(false) }
     val swipeThresholdPx = 96f
+
+    // Keying the state and listener to the attachment makes the first-frame reset
+    // synchronous with a PlayerView target switch. A frame from the detached inline
+    // surface can therefore never satisfy the post-fullscreen readiness contract.
+    DisposableEffect(player, attachPlayerDirectly) {
+        val listener = object : Player.Listener {
+            override fun onRenderedFirstFrame() {
+                firstFrameRendered = true
+                playbackReady = player.isPlaying && player.duration > 0L
+            }
+
+            override fun onMediaItemTransition(mediaItem: androidx.media3.common.MediaItem?, reason: Int) {
+                firstFrameRendered = false
+                playbackReady = false
+            }
+
+            override fun onIsPlayingChanged(isPlaying: Boolean) {
+                playbackReady = isPlaying && player.duration > 0L
+            }
+
+            override fun onPlaybackStateChanged(playbackState: Int) {
+                playbackReady = player.isPlaying && player.duration > 0L
+            }
+        }
+        player.addListener(listener)
+        onDispose { player.removeListener(listener) }
+    }
 
     DisposableEffect(currentPlayerView) {
         val playerView = currentPlayerView
@@ -511,6 +552,30 @@ private fun InlineVideoPlayer(
             },
             modifier = Modifier.fillMaxSize()
         )
+        if (attachPlayerDirectly && firstFrameRendered && playbackReady) {
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .testTag(NewAudioTestTags.VIDEO_PLAYBACK_READY)
+            )
+        }
+        if (attachPlayerDirectly) {
+            BenchmarkPlaybackPositionProbe(
+                tag = NewAudioTestTags.INLINE_VIDEO_POSITION,
+                positionProvider = { player.currentPosition },
+                modifier = Modifier
+                    .zIndex(10f)
+                    .align(Alignment.CenterEnd)
+                    .padding(end = 12.dp)
+            )
+            currentVideoTitle?.let { title ->
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .testTag(NewAudioTestTags.VIDEO_CURRENT_PREFIX + title)
+                )
+            }
+        }
         Box(
             modifier = Modifier
                 .fillMaxSize()

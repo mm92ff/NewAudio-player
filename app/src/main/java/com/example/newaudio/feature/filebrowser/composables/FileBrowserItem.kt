@@ -396,7 +396,9 @@ internal fun Video.previewModel(): String? {
 }
 
 internal fun Video.previewCacheKey(): String? {
-    return previewModel()?.let { "video-preview:$it" }
+    val stableVideoIdentity = contentUri.takeIf { it.isNotBlank() }
+        ?: path.takeIf { it.isNotBlank() }
+    return stableVideoIdentity?.let { "video-preview:$it" }
 }
 
 internal fun Video.isPortrait(): Boolean {

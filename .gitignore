@@ -36,6 +36,12 @@ captures/
 
 # Profiling
 out/
+benchmark-results/
+performance/results/
+performance/reports/
+performance/traces/
+*.perfetto-trace
+*.trace
 
 # Navigation args (generated)
 app/src/main/java/**/NavArgs*.kt

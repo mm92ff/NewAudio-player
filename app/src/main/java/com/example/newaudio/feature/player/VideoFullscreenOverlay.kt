@@ -55,18 +55,24 @@ import androidx.compose.ui.input.pointer.PointerInputScope
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.zIndex
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.CustomAccessibilityAction
 import androidx.compose.ui.semantics.customActions
+import androidx.compose.ui.semantics.onClick
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.WindowInsetsControllerCompat
+import com.example.newaudio.BuildConfig
 import com.example.newaudio.domain.model.VideoMarker
 import com.example.newaudio.R
+import com.example.newaudio.ui.BenchmarkPlaybackPositionProbe
+import com.example.newaudio.ui.NewAudioTestTags
 import androidx.media3.common.Player
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.common.VideoSize
@@ -83,6 +89,7 @@ import kotlin.math.roundToInt
 @OptIn(UnstableApi::class)
 fun VideoFullscreenOverlay(
     player: Player,
+    currentVideoTitle: String?,
     onToggleFullscreen: () -> Unit,
     onExitFullscreen: () -> Unit,
     onSwipeNext: () -> Unit,
@@ -120,6 +127,7 @@ fun VideoFullscreenOverlay(
     var volumeStartValue by remember { mutableIntStateOf(0) }
     var feedback by remember { mutableStateOf<FullscreenGestureFeedback?>(null) }
     var timelineVisible by remember { mutableStateOf(false) }
+    var timelinePinnedForBenchmark by remember { mutableStateOf(false) }
     var timelineInteractionNonce by remember { mutableIntStateOf(0) }
     var timelinePositionMs by remember(player) {
         mutableLongStateOf(player.currentPosition.coerceAtLeast(0L))
@@ -129,6 +137,10 @@ fun VideoFullscreenOverlay(
     }
     var isSeekingTimeline by remember { mutableStateOf(false) }
     var isPlayerPlaying by remember(player) { mutableStateOf(player.isPlaying) }
+    var firstFrameRendered by remember(player) { mutableStateOf(false) }
+    var playbackReady by remember(player) {
+        mutableStateOf(player.isPlaying && player.duration > 0L)
+    }
     var videoResizeMode by remember { mutableIntStateOf(AspectRatioFrameLayout.RESIZE_MODE_FIT) }
     var currentPlayerView by remember { mutableStateOf<PlayerView?>(null) }
     val swipeThresholdPx = 96f
@@ -156,8 +168,8 @@ fun VideoFullscreenOverlay(
         }
     }
 
-    LaunchedEffect(timelineVisible, timelineInteractionNonce) {
-        if (timelineVisible) {
+    LaunchedEffect(timelineVisible, timelineInteractionNonce, timelinePinnedForBenchmark) {
+        if (timelineVisible && !timelinePinnedForBenchmark) {
             delay(3_000)
             timelineVisible = false
             isSeekingTimeline = false
@@ -185,6 +197,22 @@ fun VideoFullscreenOverlay(
 
             override fun onIsPlayingChanged(isPlaying: Boolean) {
                 isPlayerPlaying = isPlaying
+                playbackReady = isPlaying && player.duration > 0L
+            }
+
+            override fun onRenderedFirstFrame() {
+                firstFrameRendered = true
+                playbackReady = player.isPlaying && player.duration > 0L
+            }
+
+            override fun onMediaItemTransition(mediaItem: androidx.media3.common.MediaItem?, reason: Int) {
+                firstFrameRendered = false
+                playbackReady = false
+                timelinePinnedForBenchmark = false
+            }
+
+            override fun onPlaybackStateChanged(playbackState: Int) {
+                playbackReady = player.isPlaying && player.duration > 0L
             }
         }
 
@@ -242,6 +270,7 @@ fun VideoFullscreenOverlay(
         modifier = modifier
             .fillMaxSize()
             .background(Color.Black)
+            .testTag(NewAudioTestTags.VIDEO_FULLSCREEN)
     ) {
         AndroidView(
             factory = { viewContext ->
@@ -256,7 +285,28 @@ fun VideoFullscreenOverlay(
             },
             modifier = Modifier.fillMaxSize()
         )
-
+        if (firstFrameRendered && playbackReady) {
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .testTag(NewAudioTestTags.VIDEO_PLAYBACK_READY)
+            )
+        }
+        currentVideoTitle?.let { title ->
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .testTag(NewAudioTestTags.VIDEO_CURRENT_PREFIX + title)
+            )
+        }
+        BenchmarkPlaybackPositionProbe(
+            tag = NewAudioTestTags.FULLSCREEN_VIDEO_POSITION,
+            positionProvider = { player.currentPosition },
+            modifier = Modifier
+                .zIndex(10f)
+                .align(Alignment.CenterEnd)
+                .padding(end = 12.dp)
+        )
         Box(
             modifier = Modifier
                 .fillMaxSize()
@@ -264,6 +314,9 @@ fun VideoFullscreenOverlay(
                     detectTapGestures(
                         onTap = {
                             timelineVisible = true
+                            if (BuildConfig.BENCHMARK) {
+                                timelinePinnedForBenchmark = true
+                            }
                             timelineInteractionNonce++
                         },
                         onDoubleTap = { onToggleFullscreen() }
@@ -361,6 +414,29 @@ fun VideoFullscreenOverlay(
         }
 
         if (timelineVisible) {
+            if (BuildConfig.BENCHMARK) {
+                Box(
+                    modifier = Modifier
+                        .zIndex(20f)
+                        .align(Alignment.TopEnd)
+                        .padding(top = 12.dp, end = 12.dp)
+                        .size(24.dp)
+                        .testTag(
+                            if (timelinePinnedForBenchmark) {
+                                NewAudioTestTags.VIDEO_CONTROLS_PINNED
+                            } else {
+                                NewAudioTestTags.VIDEO_CONTROLS_PIN
+                            }
+                        )
+                        .semantics {
+                            onClick(label = "Pin video controls for benchmark") {
+                                timelinePinnedForBenchmark = true
+                                timelineVisible = true
+                                true
+                            }
+                        }
+                )
+            }
                 VideoTimelineOverlay(
                     positionMs = timelinePositionMs,
                     durationMs = timelineDurationMs,
@@ -441,7 +517,7 @@ private fun VideoTimelineOverlay(
     modifier: Modifier = Modifier
 ) {
     Surface(
-        modifier = modifier,
+        modifier = modifier.testTag(NewAudioTestTags.VIDEO_CONTROLS_VISIBLE),
         color = Color.Black.copy(alpha = 0.72f),
         shape = MaterialTheme.shapes.medium
     ) {
@@ -449,6 +525,13 @@ private fun VideoTimelineOverlay(
             modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp),
             verticalArrangement = Arrangement.spacedBy(6.dp)
         ) {
+            if (markersEnabled && markers.size >= 3) {
+                Box(
+                    modifier = Modifier
+                        .size(1.dp)
+                        .testTag(NewAudioTestTags.VIDEO_MARKERS_READY)
+                )
+            }
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 verticalAlignment = Alignment.CenterVertically,

@@ -28,10 +28,15 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.example.newaudio.BuildConfig
 import com.example.newaudio.R
+import com.example.newaudio.ui.NewAudioTestTags
 import com.example.newaudio.ui.theme.Dimens
 import kotlinx.coroutines.flow.Flow
 
@@ -54,6 +59,19 @@ private fun MiniPlayerProgressBar(
         modifier = Modifier
             .fillMaxWidth()
             .height(height.dp)
+            .then(
+                if (BuildConfig.BENCHMARK) {
+                    Modifier
+                        .testTag(NewAudioTestTags.AUDIO_POSITION)
+                        .semantics {
+                            contentDescription =
+                                NewAudioTestTags.AUDIO_POSITION_DESCRIPTION_PREFIX +
+                                    currentPosition.coerceAtLeast(0L)
+                        }
+                } else {
+                    Modifier
+                }
+            )
             .drawWithContent {
                 // 1. Draw background (track)
                 drawRect(color = trackColor)
@@ -123,6 +141,7 @@ private fun PlayerControls(
                 maxLines = 1,
                 modifier = Modifier
                     .fillMaxWidth()
+                    .testTag(NewAudioTestTags.AUDIO_CURRENT_PREFIX + title)
                     .then(if (useMarquee) Modifier.basicMarquee() else Modifier)
             )
             if (artist.isNotEmpty()) {
@@ -180,17 +199,26 @@ fun MiniPlayer(
     Surface(
         modifier = modifier
             .fillMaxWidth()
-            .navigationBarsPadding(),
+            .navigationBarsPadding()
+            .testTag(NewAudioTestTags.MINI_PLAYER),
         tonalElevation = Dimens.ElevationSmall,
         shadowElevation = Dimens.ElevationSmall
     ) {
         Column {
-            MiniPlayerProgressBarHost(
-                currentPositionFlow = currentPositionFlow,
-                totalDuration = totalDuration,
-                height = progressBarHeight,
-                onSeek = onSeek
-            )
+            Box(
+                modifier = if (isPlaying && totalDuration > 0L) {
+                    Modifier.testTag(NewAudioTestTags.AUDIO_PLAYBACK_READY)
+                } else {
+                    Modifier
+                }
+            ) {
+                MiniPlayerProgressBarHost(
+                    currentPositionFlow = currentPositionFlow,
+                    totalDuration = totalDuration,
+                    height = progressBarHeight,
+                    onSeek = onSeek
+                )
+            }
 
             PlayerControls(
                 title = title,

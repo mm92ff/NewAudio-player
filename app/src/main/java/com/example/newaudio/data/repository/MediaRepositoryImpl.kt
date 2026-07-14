@@ -102,31 +102,42 @@ class MediaRepositoryImpl @Inject constructor(
                 initDone = CompletableDeferred()
             }
 
-            val sessionToken = SessionToken(context, ComponentName(context, MediaPlaybackService::class.java))
-            val controller = MediaController.Builder(context, sessionToken)
-                .buildAsync()
-                .await()
+            withContext(mainDispatcher) {
+                val sessionToken = SessionToken(
+                    context,
+                    ComponentName(context, MediaPlaybackService::class.java)
+                )
+                val controller = MediaController.Builder(context, sessionToken)
+                    .buildAsync()
+                    .await()
+                val delegate = PlayerListenerDelegate(
+                    context = context,
+                    playbackState = _playbackState,
+                    settingsRepository = settingsRepository,
+                    player = controller,
+                    coroutineScope = repoScope,
+                    ioDispatcher = ioDispatcher
+                )
 
-            mediaController = controller
+                try {
+                    controller.addListener(delegate)
 
-            val delegate = PlayerListenerDelegate(
-                context = context,
-                playbackState = _playbackState,
-                settingsRepository = settingsRepository,
-                player = controller,
-                coroutineScope = repoScope,
-                ioDispatcher = ioDispatcher
-            )
-            listenerDelegate = delegate
-            controller.addListener(delegate)
+                    if (!syncPlaybackStateFromController(controller, delegate)) {
+                        _playbackState.update { it.copy(isRestoring = false, player = controller) }
+                    }
 
-            if (!syncPlaybackStateFromController(controller, delegate)) {
-                _playbackState.update { it.copy(isRestoring = false, player = controller) }
+                    mediaController = controller
+                    listenerDelegate = delegate
+                } catch (e: Exception) {
+                    runCatching { controller.removeListener(delegate) }
+                    runCatching { controller.release() }
+                    throw e
+                }
             }
             initDone.complete(Unit)
         } catch (e: Exception) {
             Timber.tag(TAG).e(e, "Controller initialization failed")
-            _playbackState.update { it.copy(isRestoring = false) }
+            _playbackState.update { it.copy(isRestoring = false, player = null) }
             initDone.completeExceptionally(e)
 
             initMutex.withLock {
@@ -160,6 +171,7 @@ class MediaRepositoryImpl @Inject constructor(
     override suspend fun playPlaylist(songs: List<Song>, startIndex: Int, folderPath: String?) {
         val controller = controllerOrNull() ?: return
         if (songs.isEmpty()) return
+        applyCurrentPlaybackPreferences(controller)
 
         val mediaItems = songs.map { it.toMediaItem() }
         withContext(mainDispatcher) {
@@ -181,6 +193,7 @@ class MediaRepositoryImpl @Inject constructor(
     override suspend fun playVideoPlaylist(videos: List<Video>, startIndex: Int, folderPath: String?) {
         val controller = controllerOrNull() ?: return
         if (videos.isEmpty()) return
+        applyCurrentPlaybackPreferences(controller)
 
         val mediaItems = videos.map { it.toMediaItem() }
         withContext(mainDispatcher) {
@@ -401,6 +414,18 @@ class MediaRepositoryImpl @Inject constructor(
                 controller.seekTo(nextIndex, 0L)
             } else {
                 controller.seekToNextMediaItem()
+            }
+        }
+    }
+
+    private suspend fun applyCurrentPlaybackPreferences(controller: MediaController) {
+        val preferences = settingsRepository.userPreferences.firstOrNull() ?: return
+        withContext(mainDispatcher) {
+            controller.shuffleModeEnabled = preferences.isShuffleEnabled
+            controller.repeatMode = when (preferences.repeatMode) {
+                UserPreferences.RepeatMode.ONE -> Player.REPEAT_MODE_ONE
+                UserPreferences.RepeatMode.ALL -> Player.REPEAT_MODE_ALL
+                UserPreferences.RepeatMode.NONE -> Player.REPEAT_MODE_OFF
             }
         }
     }

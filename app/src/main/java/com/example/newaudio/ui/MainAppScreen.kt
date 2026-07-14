@@ -1,3 +1,5 @@
+@file:kotlin.OptIn(androidx.compose.ui.ExperimentalComposeUiApi::class)
+
 package com.example.newaudio.ui
 
 import androidx.annotation.OptIn
@@ -15,7 +17,12 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.testTagsAsResourceId
+import androidx.compose.ui.zIndex
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.media3.common.Player as MediaPlayer
@@ -63,6 +70,7 @@ private data class MiniBarStaticState(
 private data class VideoFullscreenStaticState(
     val player: MediaPlayer? = null,
     val hasVideo: Boolean = false,
+    val currentVideoTitle: String? = null,
     val markersEnabled: Boolean = false,
     val markers: ImmutableList<VideoMarker> = persistentListOf()
 )
@@ -96,6 +104,7 @@ fun MainAppScreen(
                 VideoFullscreenStaticState(
                     player = state.player,
                     hasVideo = state.currentVideo != null,
+                    currentVideoTitle = state.currentVideo?.title,
                     markersEnabled = state.videoMarkersEnabled,
                     markers = state.videoMarkers
                 )
@@ -107,19 +116,8 @@ fun MainAppScreen(
     )
 
     fun switchVideoTargetToInline() {
-        val player = videoFullscreenState.player
-        val inlineView = inlineVideoPlayerView
-        val fullscreenView = fullscreenVideoPlayerView
-
-        if (player != null && inlineView != null) {
-            if (fullscreenView != null && activeVideoPlayerTarget == VideoPlayerTarget.FULLSCREEN) {
-                PlayerView.switchTargetView(player, fullscreenView, inlineView)
-            } else {
-                inlineView.player = player
-            }
-            activeVideoPlayerTarget = VideoPlayerTarget.INLINE
-        }
-
+        // The actual target switch happens in the keyed effect below, after
+        // inline composition has reset its first-frame readiness listener.
         isVideoFullscreen = false
     }
 
@@ -143,17 +141,28 @@ fun MainAppScreen(
         fullscreenVideoPlayerView
     ) {
         val player = videoFullscreenState.player
-        val fullscreenView = fullscreenVideoPlayerView
-        if (!isVideoFullscreen || player == null || fullscreenView == null) return@LaunchedEffect
-        if (activeVideoPlayerTarget == VideoPlayerTarget.FULLSCREEN) return@LaunchedEffect
-
-        val inlineView = inlineVideoPlayerView
-        if (inlineView != null) {
-            PlayerView.switchTargetView(player, inlineView, fullscreenView)
+        if (player == null) return@LaunchedEffect
+        if (isVideoFullscreen) {
+            val fullscreenView = fullscreenVideoPlayerView ?: return@LaunchedEffect
+            if (activeVideoPlayerTarget == VideoPlayerTarget.FULLSCREEN) return@LaunchedEffect
+            val inlineView = inlineVideoPlayerView
+            if (inlineView != null) {
+                PlayerView.switchTargetView(player, inlineView, fullscreenView)
+            } else {
+                fullscreenView.player = player
+            }
+            activeVideoPlayerTarget = VideoPlayerTarget.FULLSCREEN
         } else {
-            fullscreenView.player = player
+            val inlineView = inlineVideoPlayerView ?: return@LaunchedEffect
+            if (activeVideoPlayerTarget == VideoPlayerTarget.FULLSCREEN) {
+                fullscreenVideoPlayerView?.let { fullscreenView ->
+                    PlayerView.switchTargetView(player, fullscreenView, inlineView)
+                } ?: run { inlineView.player = player }
+            } else {
+                inlineView.player = player
+            }
+            activeVideoPlayerTarget = VideoPlayerTarget.INLINE
         }
-        activeVideoPlayerTarget = VideoPlayerTarget.FULLSCREEN
     }
 
     // Do NOT show MiniPlayer on the player screen
@@ -164,6 +173,9 @@ fun MainAppScreen(
     }
 
     Scaffold(
+        modifier = Modifier
+            .testTag(NewAudioTestTags.APP_ROOT)
+            .semantics { testTagsAsResourceId = true },
         snackbarHost = { SnackbarHost(playerSnackbarHostState) },
         bottomBar = {
             if (showMiniPlayer && !isVideoFullscreen) {
@@ -261,6 +273,22 @@ fun MainAppScreen(
                 }
             }
 
+            if (videoFullscreenState.hasVideo && videoFullscreenState.player != null) {
+                BenchmarkActionProbe(
+                    tag = NewAudioTestTags.VIDEO_TOGGLE_FULLSCREEN,
+                    onAction = {
+                        if (isVideoFullscreen) {
+                            switchVideoTargetToInline()
+                        } else {
+                            isVideoFullscreen = true
+                        }
+                    },
+                    modifier = Modifier
+                        .zIndex(100f)
+                        .align(Alignment.TopStart)
+                )
+            }
+
             if (showConsole) {
                 ConsoleOverlay(onClose = { showConsole = false })
             }
@@ -269,6 +297,7 @@ fun MainAppScreen(
             if (isVideoFullscreen && videoFullscreenState.hasVideo && fullscreenPlayer != null) {
                 VideoFullscreenOverlay(
                     player = fullscreenPlayer,
+                    currentVideoTitle = videoFullscreenState.currentVideoTitle,
                     onToggleFullscreen = ::switchVideoTargetToInline,
                     onExitFullscreen = ::switchVideoTargetToInline,
                     onSwipeNext = playerViewModel::onSkipNext,

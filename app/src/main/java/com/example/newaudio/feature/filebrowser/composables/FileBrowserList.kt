@@ -2,6 +2,7 @@ package com.example.newaudio.feature.filebrowser.composables
 
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.combinedClickable
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -9,19 +10,22 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListState
-import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.unit.dp
 import coil.ImageLoader
-import coil.decode.VideoFrameDecoder
+import com.example.newaudio.ui.NewAudioImageLoader
 import com.example.newaudio.domain.model.FileItem
 import com.example.newaudio.domain.model.MediaBrowserMode
 import com.example.newaudio.domain.model.UserPreferences
 import com.example.newaudio.domain.model.UserPreferences.VideoDisplayMode
 import com.example.newaudio.feature.filebrowser.FileBrowserUiState
+import com.example.newaudio.ui.NewAudioTestTags
 import com.example.newaudio.ui.theme.Dimens
 
 @OptIn(ExperimentalFoundationApi::class)
@@ -41,17 +45,14 @@ fun FileBrowserList(
     onAddToVideoPlaylistClick: (FileItem.VideoFile) -> Unit,
     onItemLongClick: (FileItem) -> Unit,
     onEmptyAreaLongClick: () -> Unit,
-    onToggleRepeatMode: () -> Unit
+    onToggleRepeatMode: () -> Unit,
+    onFirstInteractiveContentPositioned: () -> Unit
 ) {
     BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
         val topSpacerHeight = maxHeight - Dimens.FileBrowser_ItemHeight
         val context = LocalContext.current
         val videoThumbnailImageLoader = remember(context) {
-            ImageLoader.Builder(context)
-                .components {
-                    add(VideoFrameDecoder.Factory())
-                }
-                .build()
+            NewAudioImageLoader.get(context)
         }
         val isGalleryMode = uiState.browserMode == MediaBrowserMode.VIDEO &&
             (uiState.videoDisplayMode == VideoDisplayMode.GALLERY_SQUARE ||
@@ -70,6 +71,7 @@ fun FileBrowserList(
                 topSpacerHeight = topSpacerHeight,
                 initialScrollKey = "${uiState.currentPath}|${uiState.videoDisplayMode}|${uiState.videoGalleryColumns}",
                 imageLoader = videoThumbnailImageLoader,
+                onFirstInteractiveContentPositioned = onFirstInteractiveContentPositioned,
                 onItemClick = onItemClick,
                 onItemLongClick = onItemLongClick,
                 onEmptyAreaLongClick = onEmptyAreaLongClick
@@ -78,7 +80,9 @@ fun FileBrowserList(
         }
 
         LazyColumn(
-            modifier = Modifier.fillMaxSize(),
+            modifier = Modifier
+                .fillMaxSize()
+                .testTag(NewAudioTestTags.BROWSER_LIST),
             state = listState
         ) {
             item(key = "reachability_spacer") {
@@ -97,10 +101,10 @@ fun FileBrowserList(
                 }
             }
 
-            items(
+            itemsIndexed(
                 items = uiState.fileItems,
-                key = { it.path }
-            ) { item ->
+                key = { _, item -> item.path }
+            ) { index, item ->
                 val isActive = remember(item, activeSongPath, activeVideoPath) {
                     when (item) {
                         is FileItem.Folder -> {
@@ -121,28 +125,40 @@ fun FileBrowserList(
                     isActive && uiState.repeatMode == UserPreferences.RepeatMode.ONE
                 }
 
-                FileBrowserItem(
-                    item = item,
-                    isActive = isActive,
-                    isEditMode = uiState.isEditMode,
-                    isSelected = isSelected,
-                    isRepeatingSong = isRepeatingSong,
-                    browserMode = uiState.browserMode,
-                    transparentListItems = uiState.transparentListItems,
-                    showVideoPreview = uiState.browserMode == MediaBrowserMode.VIDEO &&
-                        uiState.videoDisplayMode == VideoDisplayMode.PREVIEW_LIST,
-                    videoThumbnailImageLoader = videoThumbnailImageLoader,
-                    onClick = { onItemClick(item) },
-                    onFolderIconClick = { onFolderIconClick(item) },
-                    onLongClick = { onItemLongClick(item) },
-                    onDelete = { onDeleteClick(item) },
-                    onRename = { onRenameClick(item) },
-                    onCopy = { onCopyClick(item) },
-                    onMove = { onMoveClick(item) },
-                    onAddToPlaylist = { if (item is FileItem.AudioFile) onAddToPlaylistClick(item) },
-                    onAddToVideoPlaylist = { if (item is FileItem.VideoFile) onAddToVideoPlaylistClick(item) },
-                    onToggleRepeatMode = onToggleRepeatMode
-                )
+                Box(
+                    modifier = if (index == 0) {
+                        Modifier.onGloballyPositioned { coordinates ->
+                            if (coordinates.size.width > 0 && coordinates.size.height > 0) {
+                                onFirstInteractiveContentPositioned()
+                            }
+                        }
+                    } else {
+                        Modifier
+                    }
+                ) {
+                    FileBrowserItem(
+                        item = item,
+                        isActive = isActive,
+                        isEditMode = uiState.isEditMode,
+                        isSelected = isSelected,
+                        isRepeatingSong = isRepeatingSong,
+                        browserMode = uiState.browserMode,
+                        transparentListItems = uiState.transparentListItems,
+                        showVideoPreview = uiState.browserMode == MediaBrowserMode.VIDEO &&
+                            uiState.videoDisplayMode == VideoDisplayMode.PREVIEW_LIST,
+                        videoThumbnailImageLoader = videoThumbnailImageLoader,
+                        onClick = { onItemClick(item) },
+                        onFolderIconClick = { onFolderIconClick(item) },
+                        onLongClick = { onItemLongClick(item) },
+                        onDelete = { onDeleteClick(item) },
+                        onRename = { onRenameClick(item) },
+                        onCopy = { onCopyClick(item) },
+                        onMove = { onMoveClick(item) },
+                        onAddToPlaylist = { if (item is FileItem.AudioFile) onAddToPlaylistClick(item) },
+                        onAddToVideoPlaylist = { if (item is FileItem.VideoFile) onAddToVideoPlaylistClick(item) },
+                        onToggleRepeatMode = onToggleRepeatMode
+                    )
+                }
             }
 
             item(key = "bottom_spacer") {

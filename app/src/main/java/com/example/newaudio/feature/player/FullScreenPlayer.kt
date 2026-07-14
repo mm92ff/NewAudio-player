@@ -2,6 +2,7 @@ package com.example.newaudio.feature.player
 
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
@@ -21,6 +22,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -32,6 +34,7 @@ import com.example.newaudio.feature.player.composables.PlayerSeekBar
 import com.example.newaudio.feature.player.composables.PlayerTopAppBar
 import com.example.newaudio.feature.player.composables.SongDetails
 import com.example.newaudio.feature.player.composables.SongMetadataDialog
+import com.example.newaudio.ui.NewAudioTestTags
 import com.example.newaudio.ui.theme.Dimens
 import kotlinx.coroutines.flow.Flow
 import kotlin.math.min
@@ -94,7 +97,7 @@ fun FullScreenPlayer(
     }
 
     Scaffold(
-        modifier = modifier,
+        modifier = modifier.testTag(NewAudioTestTags.FULL_PLAYER),
         topBar = {
             PlayerTopAppBar(
                 onBackClicked = onBackClicked,
@@ -110,7 +113,12 @@ fun FullScreenPlayer(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(innerPadding)
-                .padding(horizontal = Dimens.PaddingLarge),
+                .padding(horizontal = Dimens.PaddingLarge)
+                .then(
+                    uiState.currentSong?.title?.let { title ->
+                        Modifier.testTag(NewAudioTestTags.AUDIO_CURRENT_PREFIX + title)
+                    } ?: Modifier
+                ),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
             BoxWithConstraints(
@@ -162,12 +170,20 @@ fun FullScreenPlayer(
             }
 
             // ✅ SeekBar reads the ticking position exclusively in the host
-            PlayerSeekBarHost(
-                currentPositionFlow = currentPositionFlow,
-                totalDuration = uiState.totalDuration,
-                progressBarHeight = uiState.fullScreenPlayerProgressBarHeight,
-                onSeek = onSeek
-            )
+            Box(
+                modifier = if (uiState.isPlaying && uiState.totalDuration > 0L) {
+                    Modifier.testTag(NewAudioTestTags.AUDIO_PLAYBACK_READY)
+                } else {
+                    Modifier
+                }
+            ) {
+                PlayerSeekBarHost(
+                    currentPositionFlow = currentPositionFlow,
+                    totalDuration = uiState.totalDuration,
+                    progressBarHeight = uiState.fullScreenPlayerProgressBarHeight,
+                    onSeek = onSeek
+                )
+            }
 
             Spacer(modifier = Modifier.height(Dimens.PaddingLarge))
 

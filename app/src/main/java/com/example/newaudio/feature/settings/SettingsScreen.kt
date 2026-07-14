@@ -8,10 +8,6 @@ import android.os.Build
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.FileUpload
-import androidx.compose.material.icons.filled.FileDownload
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
@@ -21,17 +17,17 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.core.content.ContextCompat
 import com.example.newaudio.R
-import com.example.newaudio.domain.model.UserPreferences.VideoDisplayMode
 import com.example.newaudio.feature.settings.composables.*
 import com.example.newaudio.feature.settings.composables.LocalSettingsCardStyle
 import com.example.newaudio.feature.settings.composables.SettingsCardStyle
-import com.example.newaudio.ui.theme.Dimens
+import com.example.newaudio.ui.NewAudioTestTags
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -141,6 +137,7 @@ fun SettingsScreen(
     }
 
     Scaffold(
+        modifier = Modifier.testTag(NewAudioTestTags.SETTINGS),
         topBar = {
             TopAppBar(
                 title = { Text(stringResource(R.string.settings)) },
@@ -161,118 +158,48 @@ fun SettingsScreen(
             )
         }
         CompositionLocalProvider(LocalSettingsCardStyle provides cardStyle) {
-        LazyColumn(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(padding)
-                .padding(Dimens.PaddingMedium),
-            verticalArrangement = Arrangement.spacedBy(Dimens.SettingsScreen_SectionSpacing)
-        ) {
-            item { KillAppSetting(context = context) }
-
-            item {
-                Text(
-                    text = stringResource(R.string.playlists),
-                    style = MaterialTheme.typography.titleMedium,
-                    color = MaterialTheme.colorScheme.primary
-                )
-                Text(
-                    text = stringResource(R.string.backup_description),
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-                Row(
-                    modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    SettingsFilledTonalButton(
-                        onClick = { exportLauncher.launch("newaudio_playlists.json") },
-                        modifier = Modifier.weight(1f)
-                    ) {
-                        Icon(Icons.Default.FileUpload, null)
-                        Spacer(Modifier.width(8.dp))
-                        Text(stringResource(R.string.export_playlists))
-                    }
-                    SettingsFilledTonalButton(
-                        onClick = { importLauncher.launch("application/json") },
-                        modifier = Modifier.weight(1f)
-                    ) {
-                        Icon(Icons.Default.FileDownload, null)
-                        Spacer(Modifier.width(8.dp))
-                        Text(stringResource(R.string.import_playlists))
-                    }
-                }
-            }
-
-            item { MarqueeSetting(settings.useMarquee, viewModel::onUseMarqueeChange) }
-            item { OneHandedModeSetting(settings.oneHandedMode, viewModel::onOneHandedModeChange) }
-            item { ShowHiddenFilesSetting(settings.showHiddenFiles, viewModel::onShowHiddenFilesChange) }
-            item { VideoDisplayModeSetting(settings.videoDisplayMode, viewModel::onVideoDisplayModeChange) }
-            item { VideoMarkersSetting(settings.videoMarkersEnabled, viewModel::onVideoMarkersEnabledChange) }
-            if (settings.videoDisplayMode == VideoDisplayMode.GALLERY_SQUARE ||
-                settings.videoDisplayMode == VideoDisplayMode.GALLERY_ADAPTIVE ||
-                settings.videoDisplayMode == VideoDisplayMode.GALLERY_FILLED
-            ) {
-                item {
-                    VideoGalleryColumnsSetting(
-                        selectedColumns = settings.videoGalleryColumns,
-                        onColumnsSelected = viewModel::onVideoGalleryColumnsChange
-                    )
-                }
-                item {
-                    ShowVideoNamesInGallerySetting(
-                        isEnabled = settings.showVideoNamesInGallery,
-                        onCheckedChange = viewModel::onShowVideoNamesInGalleryChange
-                    )
-                }
-            }
-            item { PlayOnFolderClickSetting(settings.playOnFolderClick, viewModel::onPlayOnFolderClickChange) }
-            item {
-                ResumeSessionOnModeSwitchSetting(
-                    settings.resumeSessionOnModeSwitch,
-                    viewModel::onResumeSessionOnModeSwitchChange
-                )
-            }
-            item { ShowFolderSongCountSetting(settings.showFolderSongCount, viewModel::onShowFolderSongCountChange) }
-            item { ThemeSetting(settings.theme, viewModel::onThemeChange) }
-            item { ColorSetting(settings.primaryColor, viewModel::onPrimaryColorChange) }
-            item { BackgroundTintSetting(settings.backgroundTintFraction, viewModel::onBackgroundTintFractionChange) }
-            item { BackgroundGradientSetting(settings.backgroundGradientEnabled, viewModel::onBackgroundGradientEnabledChange) }
-            item { TransparentListItemsSetting(settings.transparentListItems, viewModel::onTransparentListItemsChange) }
-            item {
-                SettingsCardAppearanceSetting(
-                    transparent = settings.settingsCardTransparent,
-                    onTransparentChange = viewModel::onSettingsCardTransparentChange,
-                    borderWidthDp = settings.settingsCardBorderWidth,
-                    onBorderWidthChange = viewModel::onSettingsCardBorderWidthChange,
-                    borderColor = settings.settingsCardBorderColor,
-                    onBorderColorChange = viewModel::onSettingsCardBorderColorChange
-                )
-            }
-            item { MusicFolderSetting(settings.musicFolderPath) { folderPickerLauncher.launch(null) } }
-            item { VideoFolderSetting(settings.videoFolderPath) { videoFolderPickerLauncher.launch(null) } }
-            item { BluetoothAutoplaySetting(settings.isAutoPlayOnBluetooth, onBluetoothAutoplayChange) }
-
-            item {
-                ProgressBarHeightSetting(
-                    height = settings.miniPlayerProgressBarHeight,
-                    onHeightChange = viewModel::onMiniPlayerProgressBarHeightChange
-                ) {
-                    Text(stringResource(R.string.mini_player_progress_bar_height), style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.primary)
-                }
-            }
-
-            item {
-                ProgressBarHeightSetting(
-                    height = settings.fullScreenPlayerProgressBarHeight,
-                    onHeightChange = viewModel::onFullScreenPlayerProgressBarHeightChange
-                ) {
-                    Text(stringResource(R.string.full_screen_player_progress_bar_height), style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.primary)
-                }
-            }
-
-            item { DeveloperOptions(onShowConsole, viewModel::onResetDatabaseClicked) }
-        }
+            SettingsTabs(
+                settings = settings,
+                generalActions = GeneralSettingsActions(
+                    onUseMarqueeChange = viewModel::onUseMarqueeChange,
+                    onOneHandedModeChange = viewModel::onOneHandedModeChange,
+                    onPlayOnFolderClickChange = viewModel::onPlayOnFolderClickChange,
+                    onResumeSessionOnModeSwitchChange = viewModel::onResumeSessionOnModeSwitchChange,
+                    onBluetoothAutoplayChange = onBluetoothAutoplayChange
+                ),
+                mediaActions = MediaSettingsActions(
+                    onMusicFolderClick = { folderPickerLauncher.launch(null) },
+                    onVideoFolderClick = { videoFolderPickerLauncher.launch(null) },
+                    onShowHiddenFilesChange = viewModel::onShowHiddenFilesChange,
+                    onShowFolderSongCountChange = viewModel::onShowFolderSongCountChange,
+                    onVideoDisplayModeChange = viewModel::onVideoDisplayModeChange,
+                    onVideoGalleryColumnsChange = viewModel::onVideoGalleryColumnsChange,
+                    onShowVideoNamesInGalleryChange = viewModel::onShowVideoNamesInGalleryChange,
+                    onVideoMarkersEnabledChange = viewModel::onVideoMarkersEnabledChange
+                ),
+                designActions = DesignSettingsActions(
+                    onThemeChange = viewModel::onThemeChange,
+                    onPrimaryColorChange = viewModel::onPrimaryColorChange,
+                    onBackgroundTintFractionChange = viewModel::onBackgroundTintFractionChange,
+                    onBackgroundGradientEnabledChange = viewModel::onBackgroundGradientEnabledChange,
+                    onTransparentListItemsChange = viewModel::onTransparentListItemsChange,
+                    onSettingsCardTransparentChange = viewModel::onSettingsCardTransparentChange,
+                    onSettingsCardBorderWidthChange = viewModel::onSettingsCardBorderWidthChange,
+                    onSettingsCardBorderColorChange = viewModel::onSettingsCardBorderColorChange,
+                    onMiniPlayerProgressBarHeightChange = viewModel::onMiniPlayerProgressBarHeightChange,
+                    onFullScreenPlayerProgressBarHeightChange = viewModel::onFullScreenPlayerProgressBarHeightChange
+                ),
+                systemActions = SystemSettingsActions(
+                    onExportBackup = { exportLauncher.launch("newaudio_playlists.json") },
+                    onImportBackup = { importLauncher.launch("application/json") },
+                    onShowConsole = onShowConsole,
+                    onKillApp = { killNewAudioApp(context) },
+                    onResetDatabase = viewModel::onResetDatabaseClicked
+                ),
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(padding)
+            )
         } // CompositionLocalProvider
     }
 }

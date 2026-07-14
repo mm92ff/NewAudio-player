@@ -1,11 +1,21 @@
 package com.example.newaudio.feature.filebrowser
 
+import androidx.activity.compose.ReportDrawnWhen
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.platform.testTag
+import com.example.newaudio.BuildConfig
 import com.example.newaudio.feature.player.PlayerViewModel
+import com.example.newaudio.ui.NewAudioTestTags
 import androidx.media3.ui.PlayerView
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.map
@@ -28,6 +38,24 @@ fun FileBrowserRoute(
     }
     val player by playerFlow.collectAsStateWithLifecycle(initialValue = null)
 
+    var browserRootPositioned by remember(uiState.currentPath) { mutableStateOf(false) }
+    var firstInteractiveContentPositioned by remember(uiState.currentPath) { mutableStateOf(false) }
+    LaunchedEffect(uiState.currentPath, uiState.isLoading, uiState.fileItems.size) {
+        if (uiState.isLoading || uiState.fileItems.isEmpty()) {
+            firstInteractiveContentPositioned = false
+        }
+    }
+
+    val isBrowserReady = isBrowserContentReady(
+        isLoading = uiState.isLoading,
+        itemCount = uiState.fileItems.size,
+        requireFixtureContent = BuildConfig.BENCHMARK,
+        browserRootPositioned = browserRootPositioned,
+        firstInteractiveContentPositioned = firstInteractiveContentPositioned
+    )
+
+    ReportDrawnWhen { isBrowserReady }
+
     LaunchedEffect(Unit) {
         fileBrowserViewModel.events.collect { event ->
             when (event) {
@@ -38,9 +66,10 @@ fun FileBrowserRoute(
         }
     }
 
-    FileBrowserScreen(
-        uiState = uiState,
-        player = player,
+    Box(modifier = Modifier.fillMaxSize()) {
+        FileBrowserScreen(
+            uiState = uiState,
+            player = player,
         onSettingsClick = onSettingsClick,
         onPlaylistClick = onPlaylistClick,
         onToggleBrowserMode = fileBrowserViewModel::onToggleBrowserMode,
@@ -84,7 +113,29 @@ fun FileBrowserRoute(
         onDeleteMultipleConfirmed = fileBrowserViewModel::onDeleteMultipleConfirmed,
         onAddToPlaylistMultipleConfirmed = fileBrowserViewModel::onAddToPlaylistMultipleConfirmed,
         onAddToVideoPlaylistMultipleConfirmed = fileBrowserViewModel::onAddToVideoPlaylistMultipleConfirmed,
-        onCreatePlaylistAndAdd = fileBrowserViewModel::onCreatePlaylistAndAdd,
-        onCreateVideoPlaylistAndAdd = fileBrowserViewModel::onCreateVideoPlaylistAndAdd
-    )
+            onCreatePlaylistAndAdd = fileBrowserViewModel::onCreatePlaylistAndAdd,
+            onCreateVideoPlaylistAndAdd = fileBrowserViewModel::onCreateVideoPlaylistAndAdd,
+            onFirstInteractiveContentPositioned = { firstInteractiveContentPositioned = true },
+            modifier = Modifier.onGloballyPositioned { coordinates ->
+                browserRootPositioned = coordinates.size.width > 0 && coordinates.size.height > 0
+            }
+        )
+        if (isBrowserReady) {
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .testTag(NewAudioTestTags.BROWSER_READY)
+            )
+        }
+    }
 }
+
+internal fun isBrowserContentReady(
+    isLoading: Boolean,
+    itemCount: Int,
+    requireFixtureContent: Boolean,
+    browserRootPositioned: Boolean,
+    firstInteractiveContentPositioned: Boolean
+): Boolean = !isLoading &&
+    browserRootPositioned &&
+    (!requireFixtureContent || (itemCount > 0 && firstInteractiveContentPositioned))

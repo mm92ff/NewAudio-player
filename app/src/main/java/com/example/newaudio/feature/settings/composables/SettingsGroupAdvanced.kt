@@ -28,6 +28,7 @@ import kotlin.system.exitProcess
 @Composable
 fun DeveloperOptions(
     onShowConsole: () -> Unit,
+    onKillApp: () -> Unit,
     onResetDatabase: () -> Unit
 ) {
     Column {
@@ -57,9 +58,13 @@ fun DeveloperOptions(
                 Text(text = stringResource(R.string.show_error_console), style = MaterialTheme.typography.bodyLarge)
             }
         }
-        
+
         Spacer(modifier = Modifier.height(Dimens.SettingsScreen_RowSpacing))
-        
+
+        KillAppSetting(onClick = onKillApp)
+
+        Spacer(modifier = Modifier.height(Dimens.SettingsScreen_RowSpacing))
+
         SettingsCard(
             modifier = Modifier
                 .fillMaxWidth()
@@ -89,16 +94,18 @@ fun DeveloperOptions(
 }
 
 @Composable
-fun KillAppSetting(context: Context) {
+fun KillAppSetting(onClick: () -> Unit) {
     SettingsFilledTonalButton(
-        onClick = {
-            val intent = Intent(context, MediaPlaybackService::class.java)
-            context.stopService(intent)
-            android.os.Process.killProcess(android.os.Process.myPid())
-            exitProcess(1)
-        },
+        onClick = onClick,
         modifier = Modifier.fillMaxWidth()
     ) {
         Text(text = stringResource(R.string.kill_app))
     }
+}
+
+fun killNewAudioApp(context: Context) {
+    val intent = Intent(context, MediaPlaybackService::class.java)
+    context.stopService(intent)
+    android.os.Process.killProcess(android.os.Process.myPid())
+    exitProcess(1)
 }

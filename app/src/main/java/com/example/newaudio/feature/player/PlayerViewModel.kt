@@ -114,7 +114,10 @@ class PlayerViewModel @Inject constructor(
     init {
         errorRepository.log(LogLevel.INFO, TAG, "PlayerViewModel initialized")
 
-        viewModelScope.launch(ioDispatcher) {
+        // Media3 controllers are bound to their application looper. Keep the
+        // initialization orchestration on Main; repository I/O switches to its
+        // injected I/O dispatcher where needed.
+        viewModelScope.launch {
             runCatching { initializePlaybackSessionUseCase() }
                 .onFailure { e ->
                     if (e is CancellationException) throw e

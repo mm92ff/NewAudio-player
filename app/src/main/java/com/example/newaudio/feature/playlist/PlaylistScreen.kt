@@ -15,13 +15,12 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import coil.ImageLoader
-import coil.decode.VideoFrameDecoder
 import com.example.newaudio.R
 import com.example.newaudio.domain.model.Playlist
 import com.example.newaudio.domain.model.Song
@@ -31,6 +30,8 @@ import com.example.newaudio.feature.player.PlayerViewModel
 import com.example.newaudio.feature.playlist.components.PlaylistContent
 import com.example.newaudio.feature.playlist.components.PlaylistInputDialog
 import com.example.newaudio.feature.playlist.components.VideoPlaylistContent
+import com.example.newaudio.ui.NewAudioImageLoader
+import com.example.newaudio.ui.NewAudioTestTags
 import com.example.newaudio.ui.theme.Dimens
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.map
@@ -73,11 +74,7 @@ fun PlaylistScreen(
     }.collectAsStateWithLifecycle(initialValue = null)
 
     val videoThumbnailImageLoader = remember(context) {
-        ImageLoader.Builder(context)
-            .components {
-                add(VideoFrameDecoder.Factory())
-            }
-            .build()
+        NewAudioImageLoader.get(context)
     }
 
     var showCreateDialog by remember { mutableStateOf(false) }
@@ -170,6 +167,7 @@ fun PlaylistScreen(
     }
 
     Scaffold(
+        modifier = Modifier.testTag(NewAudioTestTags.PLAYLIST),
         snackbarHost = { SnackbarHost(hostState = snackbarHostState) },
         topBar = {
             if (isEditMode) {

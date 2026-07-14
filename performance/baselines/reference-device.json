@@ -1,0 +1,80 @@
+{
+  "schemaVersion": 2,
+  "status": "template",
+  "generatedAtUtc": null,
+  "notes": "Fill from at least three metric-mode series on one controlled physical device. Never mix Full Compose Tracing results into metricSeries.",
+  "repository": {
+    "commit": null,
+    "dirty": null,
+    "statusSha256": null,
+    "diffSha256": null,
+    "untrackedSha256": null,
+    "untrackedPresent": null,
+    "worktreeStateSha256": null
+  },
+  "build": {
+    "appId": "com.example.newaudio",
+    "variant": "benchmark",
+    "versionName": null,
+    "versionCode": null,
+    "gradle": null,
+    "androidGradlePlugin": null,
+    "kotlin": null,
+    "composeBom": null,
+    "macrobenchmark": null,
+    "compilationMode": null
+  },
+  "fixtures": {
+    "manifestVersion": null,
+    "manifestSha256": null,
+    "cacheState": null
+  },
+  "host": {
+    "os": null,
+    "cpu": null,
+    "ramBytes": null,
+    "androidSdk": null,
+    "buildTools": null
+  },
+  "device": {
+    "role": "physical-reference-device",
+    "physical": true,
+    "manufacturer": null,
+    "model": null,
+    "roleId": null,
+    "apiLevel": null,
+    "buildFingerprint": null,
+    "abi": null,
+    "hardware": null,
+    "emulator": false,
+    "decoderPolicy": null,
+    "screenResolution": null,
+    "screenDensity": null,
+    "refreshRate": null,
+    "fontScale": null,
+    "animations": {
+      "window": null,
+      "transition": null,
+      "animator": null
+    },
+    "powerSource": null,
+    "batteryPercentRange": {
+      "min": null,
+      "max": null
+    },
+    "thermalStatus": null,
+    "hardwareDecodeEvidence": null
+  },
+  "independentSeriesCount": 0,
+  "metricSeries": [],
+  "thresholdPolicy": {
+    "state": "disabled-until-calibrated",
+    "minimumSeriesCount": 3,
+    "requiredRepeatOnRegression": true,
+    "relativeWarningPercent": null,
+    "absoluteMinimumDeltaMs": null,
+    "madMultiplier": null,
+    "hardGateEnabled": false
+  },
+  "diagnosticTraces": []
+}

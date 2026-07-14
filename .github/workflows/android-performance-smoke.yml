@@ -1,0 +1,319 @@
+name: Android performance verification
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "17 3 * * 1"
+
+concurrency:
+  group: android-performance-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  api35-metric-matrix:
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    strategy:
+      fail-fast: false
+      matrix:
+        display-profile: [default, large-font]
+        benchmark:
+          - id: startup
+            class: com.example.newaudio.benchmark.StartupBenchmark
+          - id: navigation
+            class: com.example.newaudio.benchmark.NavigationBenchmark
+          - id: browser
+            class: com.example.newaudio.benchmark.BrowserRenderingBenchmark
+          - id: audio
+            class: com.example.newaudio.benchmark.AudioPlaybackBenchmark
+          - id: video
+            class: com.example.newaudio.benchmark.VideoPlaybackBenchmark
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+          cache: gradle
+      - name: Create API 35 performance AVD
+        run: |
+          chmod +x gradlew
+          sudo chmod 666 /dev/kvm
+          yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" \
+            "platform-tools" "emulator" "system-images;android-35;google_apis;x86_64"
+          echo no | "$ANDROID_HOME/cmdline-tools/latest/bin/avdmanager" create avd \
+            --force --name "newaudio-performance-api35" \
+            --package "system-images;android-35;google_apis;x86_64"
+          nohup "$ANDROID_HOME/emulator/emulator" \
+            -avd "newaudio-performance-api35" -no-window -no-audio -no-boot-anim \
+            -gpu swiftshader_indirect > /tmp/performance-emulator.log 2>&1 &
+          adb wait-for-device
+          until [ "$(adb shell getprop sys.boot_completed | tr -d '\r')" = "1" ]; do sleep 2; done
+          adb shell input keyevent 82
+          adb shell settings put global window_animation_scale 0
+          adb shell settings put global transition_animation_scale 0
+          adb shell settings put global animator_duration_scale 0
+          if [ "${{ matrix.display-profile }}" = "large-font" ]; then
+            adb shell settings put system font_scale 1.30
+          else
+            adb shell settings put system font_scale 1.00
+          fi
+      - name: Run complete one-iteration metric class
+        shell: pwsh
+        run: |
+          ./performance/scripts/run-benchmarks.ps1 `
+            -TestClass '${{ matrix.benchmark.class }}' `
+            -Iterations 1 `
+            -DeviceRoleId 'api35-${{ matrix.display-profile }}'
+      - name: Upload metric evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: newaudio-api35-${{ matrix.display-profile }}-${{ matrix.benchmark.id }}
+          if-no-files-found: warn
+          retention-days: 14
+          path: |
+            benchmark/build/outputs/androidTest-results/**
+            benchmark/build/outputs/connected_android_test_additional_output/**
+            benchmark/build/reports/androidTests/**
+            performance/results/**
+            /tmp/performance-emulator.log
+
+  api35-default-independent-series:
+    needs: api35-metric-matrix
+    runs-on: ubuntu-latest
+    timeout-minutes: 240
+    strategy:
+      fail-fast: false
+      matrix:
+        series: [1, 2, 3]
+        benchmark:
+          - id: startup
+            class: com.example.newaudio.benchmark.StartupBenchmark
+          - id: navigation
+            class: com.example.newaudio.benchmark.NavigationBenchmark
+          - id: browser
+            class: com.example.newaudio.benchmark.BrowserRenderingBenchmark
+          - id: audio
+            class: com.example.newaudio.benchmark.AudioPlaybackBenchmark
+          - id: video
+            class: com.example.newaudio.benchmark.VideoPlaybackBenchmark
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+          cache: gradle
+      - name: Create controlled API 35 reference AVD
+        run: |
+          chmod +x gradlew
+          sudo chmod 666 /dev/kvm
+          yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" \
+            "platform-tools" "emulator" "system-images;android-35;google_apis;x86_64"
+          echo no | "$ANDROID_HOME/cmdline-tools/latest/bin/avdmanager" create avd \
+            --force --name "newaudio-series-api35" \
+            --package "system-images;android-35;google_apis;x86_64"
+          nohup "$ANDROID_HOME/emulator/emulator" \
+            -avd "newaudio-series-api35" -no-window -no-audio -no-boot-anim \
+            -gpu swiftshader_indirect > /tmp/series-emulator.log 2>&1 &
+          adb wait-for-device
+          until [ "$(adb shell getprop sys.boot_completed | tr -d '\r')" = "1" ]; do sleep 2; done
+          adb shell input keyevent 82
+          adb shell settings put global window_animation_scale 0
+          adb shell settings put global transition_animation_scale 0
+          adb shell settings put global animator_duration_scale 0
+          adb shell settings put system font_scale 1.00
+      - name: Run independent full metric series ${{ matrix.series }}
+        shell: pwsh
+        run: |
+          ./performance/scripts/run-benchmarks.ps1 `
+            -TestClass '${{ matrix.benchmark.class }}' `
+            -DeviceRoleId 'api35-default-series'
+      - name: Upload independent series evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: newaudio-api35-series-${{ matrix.series }}-${{ matrix.benchmark.id }}
+          if-no-files-found: warn
+          retention-days: 14
+          path: |
+            benchmark/build/outputs/androidTest-results/**
+            benchmark/build/outputs/connected_android_test_additional_output/**
+            benchmark/build/reports/androidTests/**
+            performance/results/**
+            /tmp/series-emulator.log
+
+  api35-large-font-default-matrix:
+    needs: api35-metric-matrix
+    runs-on: ubuntu-latest
+    timeout-minutes: 240
+    strategy:
+      fail-fast: false
+      matrix:
+        benchmark:
+          - id: startup
+            class: com.example.newaudio.benchmark.StartupBenchmark
+          - id: navigation
+            class: com.example.newaudio.benchmark.NavigationBenchmark
+          - id: browser
+            class: com.example.newaudio.benchmark.BrowserRenderingBenchmark
+          - id: audio
+            class: com.example.newaudio.benchmark.AudioPlaybackBenchmark
+          - id: video
+            class: com.example.newaudio.benchmark.VideoPlaybackBenchmark
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+          cache: gradle
+      - name: Create controlled large-font API 35 AVD
+        run: |
+          chmod +x gradlew
+          sudo chmod 666 /dev/kvm
+          yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" \
+            "platform-tools" "emulator" "system-images;android-35;google_apis;x86_64"
+          echo no | "$ANDROID_HOME/cmdline-tools/latest/bin/avdmanager" create avd \
+            --force --name "newaudio-large-font-api35" \
+            --package "system-images;android-35;google_apis;x86_64"
+          nohup "$ANDROID_HOME/emulator/emulator" \
+            -avd "newaudio-large-font-api35" -no-window -no-audio -no-boot-anim \
+            -gpu swiftshader_indirect > /tmp/large-font-emulator.log 2>&1 &
+          adb wait-for-device
+          until [ "$(adb shell getprop sys.boot_completed | tr -d '\r')" = "1" ]; do sleep 2; done
+          adb shell input keyevent 82
+          adb shell settings put global window_animation_scale 0
+          adb shell settings put global transition_animation_scale 0
+          adb shell settings put global animator_duration_scale 0
+          adb shell settings put system font_scale 1.30
+      - name: Run full default metric class with large font
+        shell: pwsh
+        run: |
+          ./performance/scripts/run-benchmarks.ps1 `
+            -TestClass '${{ matrix.benchmark.class }}' `
+            -DeviceRoleId 'api35-large-font-default'
+      - name: Upload large-font evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: newaudio-api35-large-font-default-${{ matrix.benchmark.id }}
+          if-no-files-found: warn
+          retention-days: 14
+          path: |
+            benchmark/build/outputs/androidTest-results/**
+            benchmark/build/outputs/connected_android_test_additional_output/**
+            benchmark/build/reports/androidTests/**
+            performance/results/**
+            /tmp/large-font-emulator.log
+
+  aggregate-default-series:
+    needs: api35-default-independent-series
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        benchmark-id: [startup, navigation, browser, audio, video]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: newaudio-api35-series-*-${{ matrix.benchmark-id }}
+          path: series-input
+          merge-multiple: true
+      - name: Aggregate three independent run batches
+        shell: pwsh
+        run: |
+          $candidates = @(Get-ChildItem series-input -Recurse -Filter candidate-series.json -File)
+          if ($candidates.Count -ne 3) {
+            throw "Expected three independent candidates; found $($candidates.Count)."
+          }
+          New-Item -ItemType Directory -Force performance/results/ci-aggregate | Out-Null
+          ./performance/scripts/aggregate-series.ps1 `
+            -CandidatePath $candidates.FullName `
+            -OutputPath "performance/results/ci-aggregate/${{ matrix.benchmark-id }}.json"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: newaudio-api35-aggregate-${{ matrix.benchmark-id }}
+          retention-days: 14
+          path: performance/results/ci-aggregate/${{ matrix.benchmark-id }}.json
+
+  api35-full-compose-trace:
+    runs-on: ubuntu-latest
+    timeout-minutes: 360
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+          cache: gradle
+      - name: Create API 35 trace AVD
+        run: |
+          chmod +x gradlew
+          sudo chmod 666 /dev/kvm
+          yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" \
+            "platform-tools" "emulator" "system-images;android-35;google_apis;x86_64"
+          echo no | "$ANDROID_HOME/cmdline-tools/latest/bin/avdmanager" create avd \
+            --force --name "newaudio-trace-api35" \
+            --package "system-images;android-35;google_apis;x86_64"
+          nohup "$ANDROID_HOME/emulator/emulator" \
+            -avd "newaudio-trace-api35" -no-window -no-audio -no-boot-anim \
+            -gpu swiftshader_indirect > /tmp/trace-emulator.log 2>&1 &
+          adb wait-for-device
+          until [ "$(adb shell getprop sys.boot_completed | tr -d '\r')" = "1" ]; do sleep 2; done
+          adb shell input keyevent 82
+          adb shell settings put global window_animation_scale 0
+          adb shell settings put global transition_animation_scale 0
+          adb shell settings put global animator_duration_scale 0
+          adb shell settings put system font_scale 1.00
+      - name: Install pinned Perfetto Trace Processor wrapper
+        run: |
+          curl -fsSL \
+            https://raw.githubusercontent.com/google/perfetto/v55.3/tools/trace_processor \
+            -o "$RUNNER_TEMP/trace_processor"
+          echo "5eaf75d819c12f1549afebb51ae41842e897f6bc415f05061035ebad2def83e8  $RUNNER_TEMP/trace_processor" \
+            | sha256sum --check --strict
+          chmod +x "$RUNNER_TEMP/trace_processor"
+      - name: Run every unique trace journey with default three iterations
+        shell: pwsh
+        run: |
+          ./performance/scripts/run-compose-trace.ps1 `
+            -TestClass com.example.newaudio.benchmark.TraceCaptureTest `
+            -DeviceRoleId 'api35-trace' `
+            -TraceProcessorPath "$env:RUNNER_TEMP/trace_processor"
+      - name: Upload trace evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: newaudio-api35-full-compose-trace
+          if-no-files-found: warn
+          retention-days: 14
+          path: |
+            benchmark/build/outputs/androidTest-results/**
+            benchmark/build/outputs/connected_android_test_additional_output/**
+            benchmark/build/reports/androidTests/**
+            performance/results/**
+            /tmp/trace-emulator.log
+
+  scan-performance-artifacts:
+    if: always()
+    needs:
+      - api35-metric-matrix
+      - api35-default-independent-series
+      - api35-large-font-default-matrix
+      - aggregate-default-series
+      - api35-full-compose-trace
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Download generated performance evidence
+        uses: actions/download-artifact@v4
+        with:
+          pattern: newaudio-*
+          path: performance-evidence
+      - name: Scan generated performance evidence for secrets
+        uses: docker://ghcr.io/gitleaks/gitleaks:v8.27.2
+        with:
+          args: detect --source=/github/workspace/performance-evidence --no-git --redact --no-banner --exit-code=1

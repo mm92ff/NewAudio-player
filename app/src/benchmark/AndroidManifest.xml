@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
+
+    <permission
+        android:name="${applicationId}.permission.BENCHMARK_SETUP"
+        android:protectionLevel="signature" />
+
+    <application>
+        <profileable
+            android:shell="true"
+            tools:targetApi="29" />
+
+        <receiver
+            android:name=".benchmark.BenchmarkSetupReceiver"
+            android:enabled="true"
+            android:exported="true"
+            android:permission="${applicationId}.permission.BENCHMARK_SETUP">
+            <intent-filter>
+                <action android:name="com.example.newaudio.benchmark.SETUP" />
+            </intent-filter>
+        </receiver>
+    </application>
+</manifest>

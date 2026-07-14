@@ -64,6 +64,10 @@
     <string name="eq_db_format">%1$d dB</string>
 
     <string name="settings">Settings</string>
+    <string name="settings_tab_general">General</string>
+    <string name="settings_tab_media">Media</string>
+    <string name="settings_tab_design">Design</string>
+    <string name="settings_tab_system">System</string>
     <string name="settings_show_error_console_icon">Log console icon</string>
     <string name="settings_reset_database_icon">Reset database icon</string>
     <string name="settings_music_folder_icon">Music folder icon</string>

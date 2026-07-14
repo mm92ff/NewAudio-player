@@ -1,0 +1,123 @@
+{
+  "schemaVersion": 2,
+  "license": "CC0-1.0",
+  "generated": true,
+  "durationMs": 20000,
+  "audioCount": 30,
+  "videoCount": 48,
+  "videoFrameDecoderIndexes": [4, 9, 14, 19, 24, 29, 34, 39, 44],
+  "templates": {
+    "audio-template.wav": "bc8c3e7f56043b6d4c5f72e46d28f6a03c289f0de8fd6c3706d40e3ba58dd81d",
+    "audio-cover-small.mp3": "a75a83ef22687573124b1963e71bbbbec6a99e482da2e9679201e1d0a97acbaf",
+    "audio-cover-medium.mp3": "4f98df3d9cdd097caed0328aeeeda72bd2ee4d5ed2a2c5e9ec5cd07aa74b6cde",
+    "audio-cover-large.mp3": "e6411b427334662a6bb3b2418162472c15041280c260eaf404c6531bd91f0f49",
+    "video-template.mp4": "430eb71d622fa94c775c19f54a836bf3c53491797defe52b086b8bb101be97f3",
+    "artwork-small.png": "22a02b40b42d3a240db7a75f7fc760774d09d4adf803764777de409dad17dbdc",
+    "artwork.png": "84a7df186e548ce2f653e02168b3c08d6e3b6240ad8e8d0d3d5f4cdf8b1246c0",
+    "artwork-large.png": "ae887ae4cfef6fd65adcf8881b592e4d0ca9d7c0eeb772f3a7455ace33fbcf01"
+  },
+  "templateMetadata": {
+    "audio-template.wav": {
+      "id": "audio-pcm-20s",
+      "mediaType": "audio",
+      "mimeType": "audio/wav",
+      "byteSize": 1764078,
+      "durationMs": 20000,
+      "durationToleranceMs": 1
+    },
+    "audio-cover-small.mp3": {
+      "id": "audio-mp3-cover-96",
+      "mediaType": "audio",
+      "mimeType": "audio/mpeg",
+      "byteSize": 241065,
+      "durationMs": 20036,
+      "durationToleranceMs": 2,
+      "embeddedArtworkWidth": 96,
+      "embeddedArtworkHeight": 96
+    },
+    "audio-cover-medium.mp3": {
+      "id": "audio-mp3-cover-256",
+      "mediaType": "audio",
+      "mimeType": "audio/mpeg",
+      "byteSize": 241605,
+      "durationMs": 20036,
+      "durationToleranceMs": 2,
+      "embeddedArtworkWidth": 256,
+      "embeddedArtworkHeight": 256
+    },
+    "audio-cover-large.mp3": {
+      "id": "audio-mp3-cover-512",
+      "mediaType": "audio",
+      "mimeType": "audio/mpeg",
+      "byteSize": 242724,
+      "durationMs": 20036,
+      "durationToleranceMs": 2,
+      "embeddedArtworkWidth": 512,
+      "embeddedArtworkHeight": 512
+    },
+    "video-template.mp4": {
+      "id": "video-h264-aac-320x180-20s",
+      "mediaType": "video",
+      "mimeType": "video/mp4",
+      "byteSize": 1294655,
+      "durationMs": 20023,
+      "durationToleranceMs": 2,
+      "width": 320,
+      "height": 180,
+      "frameRate": 15,
+      "videoCodecMime": "video/avc",
+      "audioCodecMime": "audio/mp4a-latm"
+    },
+    "artwork-small.png": {
+      "id": "artwork-96",
+      "mediaType": "artwork",
+      "mimeType": "image/png",
+      "byteSize": 243,
+      "width": 96,
+      "height": 96
+    },
+    "artwork.png": {
+      "id": "artwork-256",
+      "mediaType": "artwork",
+      "mimeType": "image/png",
+      "byteSize": 783,
+      "width": 256,
+      "height": 256
+    },
+    "artwork-large.png": {
+      "id": "artwork-512",
+      "mediaType": "artwork",
+      "mimeType": "image/png",
+      "byteSize": 1902,
+      "width": 512,
+      "height": 512
+    }
+  },
+  "embeddedArtwork": [
+    { "audio": "audio-cover-small.mp3", "artwork": "artwork-small.png", "width": 96, "height": 96 },
+    { "audio": "audio-cover-medium.mp3", "artwork": "artwork.png", "width": 256, "height": 256 },
+    { "audio": "audio-cover-large.mp3", "artwork": "artwork-large.png", "width": 512, "height": 512 }
+  ],
+  "video": {
+    "codec": "h264/aac",
+    "width": 320,
+    "height": 180,
+    "frameRate": 15
+  },
+  "cacheStates": [
+    "COLD_EMPTY_IMAGE_CACHE",
+    "WARM_PRELOADED_IMAGE_CACHE"
+  ],
+  "decoderPaths": [
+    "ARTWORK_URI",
+    "VIDEO_FRAME_DECODER"
+  ],
+  "specialNames": [
+    "Audio_%_Literal.wav",
+    "Audio_underscore_.wav",
+    "Audio_Ünicode_你好.wav",
+    "Video_%_Literal.mp4",
+    "Video_underscore_.mp4",
+    "Video_Ünicode_你好.mp4"
+  ]
+}

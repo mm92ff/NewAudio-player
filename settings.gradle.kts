@@ -21,3 +21,4 @@ dependencyResolutionManagement {
 
 rootProject.name = "newAudio"
 include(":app")
+include(":benchmark")

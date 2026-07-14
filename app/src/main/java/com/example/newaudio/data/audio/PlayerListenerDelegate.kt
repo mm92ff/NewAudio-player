@@ -1,96 +1,45 @@
 package com.example.newaudio.data.audio
 
-import android.content.Context
 import androidx.media3.common.MediaItem
 import androidx.media3.common.PlaybackException
 import androidx.media3.common.Player
-import com.example.newaudio.R
-import com.example.newaudio.di.IoDispatcher
-import com.example.newaudio.domain.model.Song
-import com.example.newaudio.domain.model.UserPreferences
-import com.example.newaudio.domain.model.Video
-import com.example.newaudio.domain.repository.IMediaRepository
-import com.example.newaudio.domain.repository.ISettingsRepository
-import dagger.hilt.android.qualifiers.ApplicationContext
-import kotlinx.coroutines.CoroutineDispatcher
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Job
-import kotlinx.coroutines.CancellationException
-import kotlinx.coroutines.channels.Channel
-import kotlinx.coroutines.delay
-import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.update
-import kotlinx.coroutines.isActive
-import kotlinx.coroutines.launch
+import com.example.newaudio.data.media.mapping.Media3ItemMapper
+import com.example.newaudio.data.media.mapping.PlaybackErrorMapper
+import com.example.newaudio.data.media.playback.PlaybackQueueState
+import com.example.newaudio.data.media.playback.PlaybackStateStore
 import timber.log.Timber
-import javax.inject.Inject
-import java.io.File
-import java.util.Locale
-import kotlin.math.abs
 
-class PlayerListenerDelegate @Inject constructor(
-    @ApplicationContext private val context: Context,
-    private val playbackState: MutableStateFlow<IMediaRepository.PlaybackState>,
-    private val settingsRepository: ISettingsRepository, // Direktes Repo statt UseCase
+data class PlaybackListenerCollaborators(
+    val snapshotWriter: PlaybackSnapshotWriter,
+    val preferenceWriter: PlaybackPreferenceWriter,
+    val positionTracker: PlaybackPositionTracker,
+    val errorMapper: PlaybackErrorMapper
+)
+
+/** Translates Media3 callbacks into app state and delegates side effects. */
+class PlayerListenerDelegate(
+    private val stateStore: PlaybackStateStore,
+    private val queueState: PlaybackQueueState,
+    private val itemMapper: Media3ItemMapper,
     private val player: Player,
-    private val coroutineScope: CoroutineScope,
-    @IoDispatcher private val ioDispatcher: CoroutineDispatcher
+    private val collaborators: PlaybackListenerCollaborators
 ) : Player.Listener {
 
     companion object {
         private const val TAG = "PlayerListenerDelegate"
-        private const val POSITION_UPDATE_INTERVAL_MS = 1000L
-        private const val AUTO_SAVE_INTERVAL_MS = 5000L
-        private const val MEDIA_TYPE_KEY = "com.example.newaudio.MEDIA_TYPE"
-        private const val MEDIA_TYPE_VIDEO = "video"
-
-        private val VIDEO_EXTENSIONS = setOf(
-            "mp4", "m4v", "mkv", "webm", "avi", "mov", "wmv", "3gp", "3gpp"
-        )
     }
-
-    private var positionUpdateJob: Job? = null
-    private val saveRequests = Channel<PlaybackSaveRequest>(Channel.CONFLATED)
-
-    init {
-        coroutineScope.launch(ioDispatcher) {
-            for (request in saveRequests) {
-                try {
-                    settingsRepository.saveLastPlayedSong(
-                        request.song,
-                        request.position,
-                        request.folderPath
-                    )
-                } catch (error: CancellationException) {
-                    throw error
-                } catch (error: Exception) {
-                    Timber.tag(TAG).e(error, "Could not persist playback snapshot")
-                }
-            }
-        }
-    }
-
-    // Volatile for thread visibility in case Main/IO run on different cores
-    @Volatile
-    private var lastSaveTime = 0L
-
-    @Volatile
-    private var lastSavedPosition = 0L
-
-    var currentPlaylist: List<Song> = emptyList()
-    var currentVideoPlaylist: List<Video> = emptyList()
-    var currentFolderPath: String? = null
 
     override fun onMediaItemTransition(mediaItem: MediaItem?, reason: Int) {
-        val currentVideo = currentVideoPlaylist.find { it.path == mediaItem?.mediaId }
-            ?: mediaItem?.takeIf { it.isVideoItem() }?.toVideo()
+        val queue = queueState.snapshot()
+        val currentVideo = queue.videos.find { it.path == mediaItem?.mediaId }
+            ?: mediaItem?.takeIf(itemMapper::isVideo)?.let(itemMapper::toVideo)
         val currentSong = if (currentVideo == null) {
-            currentPlaylist.find { it.path == mediaItem?.mediaId }
-                ?: mediaItem?.takeUnless { it.isVideoItem() }?.toSong()
+            queue.songs.find { it.path == mediaItem?.mediaId }
+                ?: mediaItem?.takeUnless(itemMapper::isVideo)?.let(itemMapper::toSong)
         } else {
             null
         }
-        playbackState.update {
+        stateStore.update {
             it.copy(
                 currentSong = currentSong,
                 currentVideo = currentVideo
@@ -107,42 +56,35 @@ class PlayerListenerDelegate @Inject constructor(
                 Player.EVENT_SHUFFLE_MODE_ENABLED_CHANGED
             )) {
             updatePlaybackState()
-            handlePositionTracking()
 
             if (events.contains(Player.EVENT_REPEAT_MODE_CHANGED)) {
-                persistRepeatMode(player.repeatMode)
+                collaborators.preferenceWriter.requestRepeatMode(player.repeatMode)
             }
             if (events.contains(Player.EVENT_SHUFFLE_MODE_ENABLED_CHANGED)) {
-                persistShuffleMode(player.shuffleModeEnabled)
+                collaborators.preferenceWriter.requestShuffle(player.shuffleModeEnabled)
             }
-            // When pausing, save immediately
             if (events.contains(Player.EVENT_IS_PLAYING_CHANGED) && !player.isPlaying) {
                 saveCurrentState()
             }
+        }
+        if (events.containsAny(
+                Player.EVENT_IS_PLAYING_CHANGED,
+                Player.EVENT_PLAYBACK_STATE_CHANGED
+            )
+        ) {
+            collaborators.positionTracker.synchronize()
         }
     }
 
     override fun onPlayerError(error: PlaybackException) {
         Timber.tag(TAG).e(error, "Player error: %s", error.message)
 
-        // Determine if this is a network-related error
-        val errorMessage = when (error.errorCode) {
-            PlaybackException.ERROR_CODE_IO_NETWORK_CONNECTION_FAILED,
-            PlaybackException.ERROR_CODE_IO_NETWORK_CONNECTION_TIMEOUT,
-            PlaybackException.ERROR_CODE_IO_INVALID_HTTP_CONTENT_TYPE,
-            PlaybackException.ERROR_CODE_IO_BAD_HTTP_STATUS,
-            PlaybackException.ERROR_CODE_IO_FILE_NOT_FOUND -> {
-                context.getString(R.string.error_network)
-            }
-            else -> error.message ?: "Unknown error"
-        }
-
-        val playerError = IMediaRepository.PlayerError(error.errorCode, errorMessage)
-        playbackState.update { it.copy(isPlaying = false, playerError = playerError) }
+        val playerError = collaborators.errorMapper.map(error)
+        stateStore.update { it.copy(isPlaying = false, playerError = playerError) }
     }
 
     private fun updatePlaybackState() {
-        playbackState.update { current ->
+        stateStore.update { current ->
             current.copy(
                 isPlaying = player.isPlaying,
                 currentPosition = player.currentPosition,
@@ -153,87 +95,7 @@ class PlayerListenerDelegate @Inject constructor(
         }
     }
 
-    private fun handlePositionTracking() {
-        positionUpdateJob?.cancel()
-        if (player.isPlaying) {
-            positionUpdateJob = coroutineScope.launch {
-                while (isActive) {
-                    val currentPos = player.currentPosition
-                    playbackState.update { it.copy(currentPosition = currentPos) }
-
-                    val now = System.currentTimeMillis()
-                    if (now - lastSaveTime > AUTO_SAVE_INTERVAL_MS &&
-                        abs(currentPos - lastSavedPosition) > 3000L) {
-                        saveCurrentState()
-                    }
-                    delay(POSITION_UPDATE_INTERVAL_MS)
-                }
-            }
-        }
-    }
-
-    private fun persistRepeatMode(repeatMode: Int) {
-        coroutineScope.launch(ioDispatcher) {
-            val mode = when (repeatMode) {
-                Player.REPEAT_MODE_ONE -> UserPreferences.RepeatMode.ONE
-                Player.REPEAT_MODE_ALL -> UserPreferences.RepeatMode.ALL
-                else -> UserPreferences.RepeatMode.NONE
-            }
-            settingsRepository.setRepeatMode(mode)
-        }
-    }
-
-    private fun persistShuffleMode(shuffleEnabled: Boolean) {
-        coroutineScope.launch(ioDispatcher) {
-            settingsRepository.setShuffleEnabled(shuffleEnabled)
-        }
-    }
-
     fun saveCurrentState() {
-        val currentState = playbackState.value
-        val song = currentState.currentSong ?: return
-
-        lastSaveTime = System.currentTimeMillis()
-        lastSavedPosition = currentState.currentPosition
-
-        saveRequests.trySend(
-            PlaybackSaveRequest(song, currentState.currentPosition, currentFolderPath)
-        )
+        collaborators.positionTracker.saveCurrentState()
     }
-
-    private fun MediaItem.toSong(): Song = Song(
-        path = this.mediaId,
-        // ✅ NEW: Try to get the URI from the player configuration, fall back to ID
-        contentUri = this.localConfiguration?.uri?.toString() ?: this.mediaId,
-        title = this.mediaMetadata.title?.toString()?.takeIf { it.isNotBlank() }
-            ?: File(this.mediaId).nameWithoutExtension.ifBlank { "Unknown Title" },
-        artist = this.mediaMetadata.artist?.toString() ?: "Unknown Artist",
-        duration = 0,
-        albumArtPath = null
-    )
-
-    private fun MediaItem.toVideo(): Video = Video(
-        path = this.mediaId,
-        contentUri = this.localConfiguration?.uri?.toString() ?: this.mediaId,
-        title = this.mediaMetadata.title?.toString()?.takeIf { it.isNotBlank() }
-            ?: File(this.mediaId).nameWithoutExtension.ifBlank { "Unknown Video" },
-        duration = 0L,
-        thumbnailUri = null
-    )
-
-    private fun MediaItem.isVideoItem(): Boolean {
-        if (mediaMetadata.extras?.getString(MEDIA_TYPE_KEY) == MEDIA_TYPE_VIDEO) {
-            return true
-        }
-
-        val extension = mediaId.substringAfterLast('.', missingDelimiterValue = "")
-            .lowercase(Locale.ROOT)
-        return extension in VIDEO_EXTENSIONS
-    }
-
-    private data class PlaybackSaveRequest(
-        val song: Song,
-        val position: Long,
-        val folderPath: String?
-    )
 }

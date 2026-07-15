@@ -101,7 +101,16 @@
     <string name="background_tint_title">Background tint</string>
     <string name="background_tint_desc">Blends the primary color into the background (0%% = no tint, 30%% = strong)</string>
     <string name="background_gradient_title">Background gradient</string>
-    <string name="background_gradient_desc">Top: no tint, bottom: with tint</string>
+    <string name="background_gradient_desc">Blend from the untinted background toward the selected color</string>
+    <string name="background_gradient_direction_title">Gradient Direction</string>
+    <string name="background_gradient_direction_top_to_bottom">Top to Bottom</string>
+    <string name="background_gradient_direction_bottom_to_top">Bottom to Top</string>
+    <string name="background_gradient_direction_left_to_right">Left to Right</string>
+    <string name="background_gradient_direction_right_to_left">Right to Left</string>
+    <string name="background_gradient_direction_top_left_to_bottom_right">Top Left to Bottom Right</string>
+    <string name="background_gradient_direction_bottom_right_to_top_left">Bottom Right to Top Left</string>
+    <string name="background_gradient_direction_top_right_to_bottom_left">Top Right to Bottom Left</string>
+    <string name="background_gradient_direction_bottom_left_to_top_right">Bottom Left to Top Right</string>
     <string name="transparent_list_items_title">Transparent list items</string>
     <string name="transparent_list_items_desc">Background of songs and folders transparent (gradient visible)</string>
     <string name="settings_card_appearance_title">Cards &amp; Buttons</string>

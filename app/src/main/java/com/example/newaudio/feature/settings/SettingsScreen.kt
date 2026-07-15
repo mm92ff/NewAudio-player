@@ -98,7 +98,7 @@ fun SettingsScreen(
     ) { uri: Uri? ->
         uri?.let { destinationUri ->
             // Delegate I/O operations to ViewModel instead of handling in composable
-            viewModel.onExportPlaylistsToUri(destinationUri, context)
+            viewModel.onExportPlaylistsToUri(destinationUri)
         }
     }
 
@@ -108,7 +108,7 @@ fun SettingsScreen(
     ) { uri: Uri? ->
         uri?.let {
             // Delegate I/O operations to ViewModel instead of handling in composable
-            viewModel.onImportPlaylistsFromUri(it, context)
+            viewModel.onImportPlaylistsFromUri(it)
         }
     }
 
@@ -182,6 +182,7 @@ fun SettingsScreen(
                     onPrimaryColorChange = viewModel::onPrimaryColorChange,
                     onBackgroundTintFractionChange = viewModel::onBackgroundTintFractionChange,
                     onBackgroundGradientEnabledChange = viewModel::onBackgroundGradientEnabledChange,
+                    onBackgroundGradientDirectionChange = viewModel::onBackgroundGradientDirectionChange,
                     onTransparentListItemsChange = viewModel::onTransparentListItemsChange,
                     onSettingsCardTransparentChange = viewModel::onSettingsCardTransparentChange,
                     onSettingsCardBorderWidthChange = viewModel::onSettingsCardBorderWidthChange,

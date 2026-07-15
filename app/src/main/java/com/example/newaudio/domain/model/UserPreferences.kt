@@ -22,6 +22,7 @@ data class UserPreferences(
     val showFolderSongCount: Boolean,
     val backgroundTintFraction: Float,
     val backgroundGradientEnabled: Boolean,
+    val backgroundGradientDirection: GradientDirection = GradientDirection.TOP_TO_BOTTOM,
     val transparentListItems: Boolean,
     val settingsCardTransparent: Boolean,
     val settingsCardBorderWidth: Float,
@@ -39,6 +40,17 @@ data class UserPreferences(
 
     enum class RepeatMode {
         NONE, ONE, ALL
+    }
+
+    enum class GradientDirection {
+        TOP_TO_BOTTOM,
+        BOTTOM_TO_TOP,
+        LEFT_TO_RIGHT,
+        RIGHT_TO_LEFT,
+        TOP_LEFT_TO_BOTTOM_RIGHT,
+        BOTTOM_RIGHT_TO_TOP_LEFT,
+        TOP_RIGHT_TO_BOTTOM_LEFT,
+        BOTTOM_LEFT_TO_TOP_RIGHT
     }
 
     enum class VideoDisplayMode {
@@ -69,6 +81,7 @@ data class UserPreferences(
             showFolderSongCount = false,
             backgroundTintFraction = 0.08f,
             backgroundGradientEnabled = false,
+            backgroundGradientDirection = GradientDirection.TOP_TO_BOTTOM,
             transparentListItems = false,
             settingsCardTransparent = false,
             settingsCardBorderWidth = 0f,

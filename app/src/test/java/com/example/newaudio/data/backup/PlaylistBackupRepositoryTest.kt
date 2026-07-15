@@ -1,4 +1,4 @@
-package com.example.newaudio.data.repository
+package com.example.newaudio.data.backup
 
 import android.content.ContentResolver
 import android.content.Context
@@ -15,6 +15,7 @@ import com.example.newaudio.data.database.dao.PlaylistDao
 import com.example.newaudio.data.database.dao.VideoPlaylistDao
 import com.example.newaudio.data.database.dao.VideoPlaylistVideoResult
 import com.example.newaudio.domain.model.UserPreferences
+import com.example.newaudio.domain.repository.IPlaylistBackupRepository
 import com.example.newaudio.domain.repository.PlaylistExportContainer
 import com.example.newaudio.domain.repository.ImportFailure
 import com.example.newaudio.util.Constants
@@ -37,7 +38,7 @@ import java.io.FileOutputStream
 import java.io.ByteArrayInputStream
 
 @RunWith(RobolectricTestRunner::class)
-class PlaylistRepositoryImplTest {
+class PlaylistBackupRepositoryTest {
 
     private val dispatcher = StandardTestDispatcher()
     private val playlistDao = mockk<PlaylistDao>(relaxed = true)
@@ -50,16 +51,28 @@ class PlaylistRepositoryImplTest {
         override suspend fun <T> run(block: suspend () -> T): T = block()
     }
 
-    private fun buildRepository(): PlaylistRepositoryImpl {
+    private fun buildRepository(): IPlaylistBackupRepository {
         every { context.contentResolver } returns contentResolver
-        return PlaylistRepositoryImpl(
-            playlistDao = playlistDao,
-            videoPlaylistDao = videoPlaylistDao,
-            videoDao = videoDao,
-            videoMarkerDao = videoMarkerDao,
-            transactionRunner = transactionRunner,
-            context = context,
-            ioDispatcher = dispatcher
+        val source = AndroidPlaylistBackupSource(context)
+        val destination = AndroidPlaylistBackupDestination(context)
+        return PlaylistBackupRepositoryImpl(
+            exporter = PlaylistBackupExporter(
+                playlistDao = playlistDao,
+                videoPlaylistDao = videoPlaylistDao,
+                videoMarkerDao = videoMarkerDao,
+                destination = destination,
+                ioDispatcher = dispatcher
+            ),
+            importer = PlaylistBackupImporter(
+                playlistDao = playlistDao,
+                videoPlaylistDao = videoPlaylistDao,
+                videoDao = videoDao,
+                videoMarkerDao = videoMarkerDao,
+                transactionRunner = transactionRunner,
+                source = source,
+                validator = PlaylistImportValidator(),
+                ioDispatcher = dispatcher
+            )
         )
     }
 

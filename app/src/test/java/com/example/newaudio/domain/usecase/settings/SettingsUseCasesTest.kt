@@ -327,6 +327,18 @@ class SettingsUseCasesTest {
     }
 
     // -------------------------------------------------------------------------
+    // SetBackgroundGradientDirectionUseCase
+    // -------------------------------------------------------------------------
+
+    @Test
+    fun `SetBackgroundGradientDirectionUseCase stores every direction`() = runTest {
+        UserPreferences.GradientDirection.entries.forEach { direction ->
+            SetBackgroundGradientDirectionUseCase(repo)(direction)
+            assertEquals(direction, repo.userPreferences.first().backgroundGradientDirection)
+        }
+    }
+
+    // -------------------------------------------------------------------------
     // SetSettingsCardTransparentUseCase
     // -------------------------------------------------------------------------
 

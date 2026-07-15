@@ -1,6 +1,11 @@
 package com.example.newaudio.di
 
 import com.example.newaudio.data.repository.DataStoreAudioSettingsRepository
+import com.example.newaudio.data.backup.AndroidPlaylistBackupDestination
+import com.example.newaudio.data.backup.AndroidPlaylistBackupSource
+import com.example.newaudio.data.backup.PlaylistBackupDestination
+import com.example.newaudio.data.backup.PlaylistBackupRepositoryImpl
+import com.example.newaudio.data.backup.PlaylistBackupSource
 import com.example.newaudio.data.repository.EqualizerRepositoryImpl
 import com.example.newaudio.data.repository.ErrorRepositoryImpl
 import com.example.newaudio.data.repository.FolderOrderRepositoryImpl
@@ -16,6 +21,7 @@ import com.example.newaudio.domain.repository.IErrorRepository
 import com.example.newaudio.domain.repository.IFolderOrderRepository
 import com.example.newaudio.domain.repository.IMediaRepository
 import com.example.newaudio.domain.repository.IMediaScannerRepository
+import com.example.newaudio.domain.repository.IPlaylistBackupRepository
 import com.example.newaudio.domain.repository.IPlaylistRepository
 import com.example.newaudio.domain.repository.ISettingsRepository
 import com.example.newaudio.domain.repository.IVideoMarkerRepository
@@ -63,6 +69,24 @@ abstract class RepositoryModule {
     @Binds
     @Singleton
     abstract fun bindPlaylistRepository(impl: PlaylistRepositoryImpl): IPlaylistRepository
+
+    @Binds
+    @Singleton
+    abstract fun bindPlaylistBackupRepository(
+        impl: PlaylistBackupRepositoryImpl
+    ): IPlaylistBackupRepository
+
+    @Binds
+    @Singleton
+    abstract fun bindPlaylistBackupSource(
+        impl: AndroidPlaylistBackupSource
+    ): PlaylistBackupSource
+
+    @Binds
+    @Singleton
+    abstract fun bindPlaylistBackupDestination(
+        impl: AndroidPlaylistBackupDestination
+    ): PlaylistBackupDestination
 
     @Binds
     @Singleton

@@ -1,6 +1,5 @@
 package com.example.newaudio.feature.settings
 
-import android.content.Context
 import android.net.Uri
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
@@ -9,10 +8,9 @@ import com.example.newaudio.di.IoDispatcher
 import com.example.newaudio.domain.model.LogLevel
 import com.example.newaudio.domain.model.UserPreferences
 import com.example.newaudio.domain.repository.IErrorRepository
-import com.example.newaudio.domain.repository.IPlaylistRepository
+import com.example.newaudio.domain.repository.IPlaylistBackupRepository
 import com.example.newaudio.domain.repository.ImportFailure
 import com.example.newaudio.domain.usecase.settings.GetUserSettingsUseCase
-import java.io.File
 import com.example.newaudio.domain.usecase.file.SetMusicFolderUseCase
 import com.example.newaudio.domain.usecase.file.SetVideoFolderUseCase
 import com.example.newaudio.domain.usecase.settings.ResetDatabaseUseCase
@@ -29,6 +27,7 @@ import com.example.newaudio.domain.usecase.settings.SetVideoDisplayModeUseCase
 import com.example.newaudio.domain.usecase.settings.SetVideoGalleryColumnsUseCase
 import com.example.newaudio.domain.usecase.settings.SetVideoMarkersEnabledUseCase
 import com.example.newaudio.domain.usecase.settings.SetBackgroundTintFractionUseCase
+import com.example.newaudio.domain.usecase.settings.SetBackgroundGradientDirectionUseCase
 import com.example.newaudio.domain.usecase.settings.SetBackgroundGradientEnabledUseCase
 import com.example.newaudio.domain.usecase.settings.SetTransparentListItemsUseCase
 import com.example.newaudio.domain.usecase.settings.SetSettingsCardTransparentUseCase
@@ -79,6 +78,7 @@ class SettingsViewModel @Inject constructor(
     private val setShowFolderSongCountUseCase: SetShowFolderSongCountUseCase,
     private val setBackgroundTintFractionUseCase: SetBackgroundTintFractionUseCase,
     private val setBackgroundGradientEnabledUseCase: SetBackgroundGradientEnabledUseCase,
+    private val setBackgroundGradientDirectionUseCase: SetBackgroundGradientDirectionUseCase,
     private val setTransparentListItemsUseCase: SetTransparentListItemsUseCase,
     private val setSettingsCardTransparentUseCase: SetSettingsCardTransparentUseCase,
     private val setSettingsCardBorderWidthUseCase: SetSettingsCardBorderWidthUseCase,
@@ -86,7 +86,7 @@ class SettingsViewModel @Inject constructor(
     private val restoreUserPreferencesUseCase: RestoreUserPreferencesUseCase,
     private val resetDatabaseUseCase: ResetDatabaseUseCase,
     private val errorRepository: IErrorRepository,
-    private val playlistRepository: IPlaylistRepository,
+    private val playlistBackupRepository: IPlaylistBackupRepository,
     @IoDispatcher private val ioDispatcher: CoroutineDispatcher
 ) : ViewModel() {
 
@@ -96,6 +96,9 @@ class SettingsViewModel @Inject constructor(
 
     private val _events = Channel<SettingsEvent>(Channel.BUFFERED)
     val events = _events.receiveAsFlow()
+
+    private val gradientDirectionUpdates =
+        Channel<UserPreferences.GradientDirection>(Channel.CONFLATED)
 
     private val _showResetDialog = MutableStateFlow(false)
     val showResetDialog = _showResetDialog.asStateFlow()
@@ -109,6 +112,13 @@ class SettingsViewModel @Inject constructor(
 
     init {
         errorRepository.log(LogLevel.INFO, TAG, "SettingsViewModel initialized")
+        viewModelScope.launch(ioDispatcher) {
+            for (direction in gradientDirectionUpdates) {
+                executeSafely {
+                    setBackgroundGradientDirectionUseCase(direction)
+                }
+            }
+        }
     }
 
     fun onThemeChange(theme: UserPreferences.Theme) = safeLaunch {
@@ -197,6 +207,10 @@ class SettingsViewModel @Inject constructor(
         setBackgroundGradientEnabledUseCase(enabled)
     }
 
+    fun onBackgroundGradientDirectionChange(direction: UserPreferences.GradientDirection) {
+        gradientDirectionUpdates.trySend(direction)
+    }
+
     fun onTransparentListItemsChange(enabled: Boolean) = safeLaunch {
         setTransparentListItemsUseCase(enabled)
     }
@@ -229,13 +243,7 @@ class SettingsViewModel @Inject constructor(
     suspend fun exportPlaylistsSuspend(filePath: String, notifyResult: Boolean = true): Boolean {
         return withContext(ioDispatcher) {
             try {
-                val pathForRepo = if (filePath.startsWith("/") && !filePath.startsWith("file://")) {
-                    "file://$filePath"
-                } else {
-                    filePath
-                }
-
-                val success = playlistRepository.exportPlaylists(pathForRepo, settingsState.value)
+                val success = playlistBackupRepository.exportPlaylists(filePath, settingsState.value)
 
                 if (notifyResult) {
                     if (success) {
@@ -245,6 +253,8 @@ class SettingsViewModel @Inject constructor(
                     }
                 }
                 success
+            } catch (e: CancellationException) {
+                throw e
             } catch (e: Exception) {
                 val errorMessage = e.message ?: "Unknown error during export"
                 Timber.tag(TAG).e(e, "Export failed")
@@ -262,7 +272,7 @@ class SettingsViewModel @Inject constructor(
     }
 
     fun onExportPlaylists(filePath: String) = safeLaunch {
-        val success = playlistRepository.exportPlaylists(filePath, settingsState.value)
+        val success = playlistBackupRepository.exportPlaylists(filePath, settingsState.value)
         if (success) {
             _events.send(SettingsEvent.ShowMessage(UiText.StringResource(R.string.export_success)))
         } else {
@@ -271,13 +281,7 @@ class SettingsViewModel @Inject constructor(
     }
 
     private suspend fun performImport(filePath: String) {
-        val pathForRepo = if (filePath.startsWith("/") && !filePath.startsWith("file://")) {
-            "file://$filePath"
-        } else {
-            filePath
-        }
-
-        val result = playlistRepository.importPlaylists(pathForRepo)
+        val result = playlistBackupRepository.importPlaylists(filePath)
 
         if (!result.isSuccess) {
             val message = when (result.failure) {
@@ -343,101 +347,38 @@ class SettingsViewModel @Inject constructor(
         performImport(filePath)
     }
 
-    fun onExportPlaylistsToUri(destinationUri: Uri, context: Context) = safeLaunch {
-        val tempFile = File(context.cacheDir, "export_temp.json")
-        try {
-            val exportSuccess = exportPlaylistsSuspend(tempFile.absolutePath, notifyResult = false)
-
-            if (exportSuccess) {
-                val copySuccess = withContext(ioDispatcher) {
-                    try {
-                        val opened = context.contentResolver.openOutputStream(destinationUri, "wt")
-                        if (opened == null) return@withContext false
-                        opened.use { output ->
-                            tempFile.inputStream().use { input ->
-                                input.copyTo(output)
-                            }
-                        }
-                        true
-                    } catch (e: Exception) {
-                        Timber.tag(TAG).e(e, "Failed to copy export file to destination")
-                        errorRepository.log(LogLevel.ERROR, TAG, "Export copy failed: ${e.message}", e)
-                        false
-                    }
-                }
-
-                if (copySuccess) {
-                    _events.send(SettingsEvent.ShowMessage(UiText.StringResource(R.string.export_success)))
-                } else {
-                    _events.send(SettingsEvent.ShowMessage(UiText.StringResource(R.string.copy_failed)))
-                }
-            } else {
-                _events.send(SettingsEvent.ShowMessage(UiText.StringResource(R.string.unknown_error)))
-            }
-        } catch (e: Exception) {
-            Timber.tag(TAG).e(e, "Export operation failed")
-            errorRepository.log(LogLevel.ERROR, TAG, "Export failed: ${e.message}", e)
+    fun onExportPlaylistsToUri(destinationUri: Uri) = safeLaunch {
+        val success = playlistBackupRepository.exportPlaylists(
+            destinationUri.toString(),
+            settingsState.value
+        )
+        if (success) {
+            _events.send(SettingsEvent.ShowMessage(UiText.StringResource(R.string.export_success)))
+        } else {
             _events.send(SettingsEvent.ShowMessage(UiText.StringResource(R.string.unknown_error)))
-        } finally {
-            if (tempFile.exists()) {
-                tempFile.delete()
-            }
         }
     }
 
-    fun onImportPlaylistsFromUri(sourceUri: Uri, context: Context) = safeLaunch {
-        val tempFile = File(context.cacheDir, "import_temp.json")
-        try {
-            withContext(ioDispatcher) {
-                tempFile.delete()
-                val inputStream = context.contentResolver.openInputStream(sourceUri)
-                    ?: throw java.io.FileNotFoundException(sourceUri.toString())
-                inputStream.use { input ->
-                    tempFile.outputStream().use { output ->
-                        var total = 0L
-                        val buffer = ByteArray(DEFAULT_BUFFER_SIZE)
-                        while (true) {
-                            val read = input.read(buffer)
-                            if (read < 0) break
-                            total += read
-                            if (total > Constants.Security.MAX_IMPORT_BYTES) {
-                                throw ImportTooLargeException()
-                            }
-                            output.write(buffer, 0, read)
-                        }
-                    }
-                }
-            }
-
-            performImport(tempFile.absolutePath)
-
-        } catch (e: ImportTooLargeException) {
-            _events.send(SettingsEvent.ShowMessage(UiText.StringResource(R.string.import_failed_too_large)))
-        } catch (e: Exception) {
-            Timber.tag(TAG).e(e, "Import operation failed")
-            errorRepository.log(LogLevel.ERROR, TAG, "Import failed: ${e.message}", e)
-            _events.send(SettingsEvent.ShowMessage(UiText.StringResource(R.string.unknown_error)))
-        } finally {
-            if (tempFile.exists()) {
-                tempFile.delete()
-            }
-        }
+    fun onImportPlaylistsFromUri(sourceUri: Uri) = safeLaunch {
+        performImport(sourceUri.toString())
     }
-
-    private class ImportTooLargeException : Exception()
 
     private fun safeLaunch(block: suspend () -> Unit) {
         viewModelScope.launch(ioDispatcher) {
-            try {
-                block()
-            } catch (e: CancellationException) {
-                throw e
-            } catch (e: Exception) {
-                val errorMessage = e.message ?: "Unknown error in Settings"
-                Timber.tag(TAG).e(e, "Update failed")
-                errorRepository.log(LogLevel.ERROR, TAG, errorMessage, e)
-                _events.send(SettingsEvent.ShowMessage(UiText.StringResource(R.string.unknown_error)))
-            }
+            executeSafely(block)
+        }
+    }
+
+    private suspend fun executeSafely(block: suspend () -> Unit) {
+        try {
+            block()
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            val errorMessage = e.message ?: "Unknown error in Settings"
+            Timber.tag(TAG).e(e, "Update failed")
+            errorRepository.log(LogLevel.ERROR, TAG, errorMessage, e)
+            _events.send(SettingsEvent.ShowMessage(UiText.StringResource(R.string.unknown_error)))
         }
     }
 }

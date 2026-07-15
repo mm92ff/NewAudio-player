@@ -9,6 +9,7 @@ import com.example.newaudio.domain.usecase.settings.ResetDatabaseUseCase
 import com.example.newaudio.domain.usecase.settings.RestoreUserPreferencesUseCase
 import com.example.newaudio.domain.usecase.settings.SetAutoPlayOnBluetoothUseCase
 import com.example.newaudio.domain.usecase.settings.SetBackgroundGradientEnabledUseCase
+import com.example.newaudio.domain.usecase.settings.SetBackgroundGradientDirectionUseCase
 import com.example.newaudio.domain.usecase.settings.SetBackgroundTintFractionUseCase
 import com.example.newaudio.domain.usecase.settings.SetFullScreenPlayerProgressBarHeightUseCase
 import com.example.newaudio.domain.usecase.settings.SetMiniPlayerProgressBarHeightUseCase
@@ -32,7 +33,7 @@ import com.example.newaudio.domain.usecase.settings.SetSettingsCardBorderColorUs
 import com.example.newaudio.fake.FakeErrorRepository
 import com.example.newaudio.fake.FakeMediaRepository
 import com.example.newaudio.fake.FakeMediaScannerRepository
-import com.example.newaudio.fake.FakePlaylistRepository
+import com.example.newaudio.fake.FakePlaylistBackupRepository
 import com.example.newaudio.fake.FakeSettingsRepository
 import com.example.newaudio.util.UiText
 import io.mockk.coEvery
@@ -65,7 +66,7 @@ class BackupExportImportTest {
     private val mediaRepo = FakeMediaRepository()
     private val scannerRepo = FakeMediaScannerRepository()
     private val errorRepo = FakeErrorRepository()
-    private val playlistRepo = FakePlaylistRepository()
+    private val playlistRepo = FakePlaylistBackupRepository()
 
     private fun buildViewModel(
         restoreUserPreferencesUseCase: RestoreUserPreferencesUseCase =
@@ -92,6 +93,7 @@ class BackupExportImportTest {
         setShowFolderSongCountUseCase = SetShowFolderSongCountUseCase(settingsRepo),
         setBackgroundTintFractionUseCase = SetBackgroundTintFractionUseCase(settingsRepo),
         setBackgroundGradientEnabledUseCase = SetBackgroundGradientEnabledUseCase(settingsRepo),
+        setBackgroundGradientDirectionUseCase = SetBackgroundGradientDirectionUseCase(settingsRepo),
         setTransparentListItemsUseCase = SetTransparentListItemsUseCase(settingsRepo),
         setSettingsCardTransparentUseCase = SetSettingsCardTransparentUseCase(settingsRepo),
         setSettingsCardBorderWidthUseCase = SetSettingsCardBorderWidthUseCase(settingsRepo),
@@ -99,7 +101,7 @@ class BackupExportImportTest {
         restoreUserPreferencesUseCase = restoreUserPreferencesUseCase,
         resetDatabaseUseCase = ResetDatabaseUseCase(mediaRepo, settingsRepo, scannerRepo),
         errorRepository = errorRepo,
-        playlistRepository = playlistRepo,
+        playlistBackupRepository = playlistRepo,
         ioDispatcher = testDispatcher
     )
 
@@ -110,6 +112,9 @@ class BackupExportImportTest {
     fun `export passes current settings to repository`() = runTest {
         settingsRepo.setTheme(UserPreferences.Theme.LIGHT)
         settingsRepo.setPrimaryColor("#00FF00")
+        settingsRepo.setBackgroundGradientDirection(
+            UserPreferences.GradientDirection.BOTTOM_LEFT_TO_TOP_RIGHT
+        )
         val vm = buildViewModel()
         backgroundScope.launch { vm.settingsState.collect {} }
         advanceUntilIdle()
@@ -120,6 +125,29 @@ class BackupExportImportTest {
         assertNotNull(playlistRepo.exportedPreferences)
         assertEquals(UserPreferences.Theme.LIGHT, playlistRepo.exportedPreferences?.theme)
         assertEquals("#00FF00", playlistRepo.exportedPreferences?.primaryColor)
+        assertEquals(
+            UserPreferences.GradientDirection.BOTTOM_LEFT_TO_TOP_RIGHT,
+            playlistRepo.exportedPreferences?.backgroundGradientDirection
+        )
+    }
+
+    @Test
+    fun `export forwards absolute path without view model normalization`() = runTest {
+        val vm = buildViewModel()
+
+        vm.exportPlaylistsSuspend("/storage/emulated/0/Download/newaudio.json", notifyResult = false)
+
+        assertEquals("/storage/emulated/0/Download/newaudio.json", playlistRepo.exportedPath)
+    }
+
+    @Test
+    fun `import forwards absolute path without view model normalization`() = runTest {
+        val vm = buildViewModel()
+
+        vm.onImportPlaylists("/storage/emulated/0/Download/newaudio.json")
+        advanceUntilIdle()
+
+        assertEquals("/storage/emulated/0/Download/newaudio.json", playlistRepo.importedPath)
     }
 
     @Test
@@ -127,7 +155,9 @@ class BackupExportImportTest {
         val backedUpPrefs = UserPreferences.default().copy(
             theme = UserPreferences.Theme.LIGHT,
             primaryColor = "#123456",
-            backgroundTintFraction = 0.15f
+            backgroundTintFraction = 0.15f,
+            backgroundGradientDirection =
+                UserPreferences.GradientDirection.RIGHT_TO_LEFT
         )
         playlistRepo.importReturnPreferences = backedUpPrefs
         val vm = buildViewModel()
@@ -140,6 +170,10 @@ class BackupExportImportTest {
         assertEquals(UserPreferences.Theme.LIGHT, restored.theme)
         assertEquals("#123456", restored.primaryColor)
         assertEquals(0.15f, restored.backgroundTintFraction)
+        assertEquals(
+            UserPreferences.GradientDirection.RIGHT_TO_LEFT,
+            restored.backgroundGradientDirection
+        )
     }
 
     @Test

@@ -42,6 +42,7 @@ interface ISettingsRepository {
     // Background tint
     suspend fun setBackgroundTintFraction(fraction: Float)
     suspend fun setBackgroundGradientEnabled(enabled: Boolean)
+    suspend fun setBackgroundGradientDirection(direction: UserPreferences.GradientDirection)
     suspend fun setTransparentListItems(enabled: Boolean)
     suspend fun setSettingsCardTransparent(enabled: Boolean)
     suspend fun setSettingsCardBorderWidth(widthDp: Float)

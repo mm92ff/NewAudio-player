@@ -4,6 +4,7 @@ import com.example.newaudio.domain.model.Song
 import com.example.newaudio.domain.model.UserPreferences
 import com.example.newaudio.domain.repository.ISettingsRepository
 import com.example.newaudio.domain.repository.LastPlayedSong
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -18,6 +19,8 @@ class FakeSettingsRepository : ISettingsRepository {
 
     var savedLastPlayedSong: LastPlayedSong? = null
     var setThemeCalled: UserPreferences.Theme? = null
+    var backgroundGradientDirectionError: Throwable? = null
+    var backgroundGradientDirectionGate: CompletableDeferred<Unit>? = null
 
     override suspend fun setTheme(theme: UserPreferences.Theme) {
         setThemeCalled = theme
@@ -123,6 +126,12 @@ class FakeSettingsRepository : ISettingsRepository {
 
     override suspend fun setBackgroundGradientEnabled(enabled: Boolean) {
         _prefs.value = _prefs.value.copy(backgroundGradientEnabled = enabled)
+    }
+
+    override suspend fun setBackgroundGradientDirection(direction: UserPreferences.GradientDirection) {
+        backgroundGradientDirectionGate?.await()
+        backgroundGradientDirectionError?.let { throw it }
+        _prefs.value = _prefs.value.copy(backgroundGradientDirection = direction)
     }
 
     override suspend fun setTransparentListItems(enabled: Boolean) {

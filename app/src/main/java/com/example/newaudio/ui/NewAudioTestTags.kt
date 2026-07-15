@@ -24,6 +24,20 @@ object NewAudioTestTags {
     const val SETTINGS_CONTENT_MEDIA = "newaudio_settings_content_media"
     const val SETTINGS_CONTENT_DESIGN = "newaudio_settings_content_design"
     const val SETTINGS_CONTENT_SYSTEM = "newaudio_settings_content_system"
+    const val GRADIENT_DIRECTION_PICKER = "newaudio_gradient_direction_picker"
+    const val GRADIENT_DIRECTION_CENTER = "newaudio_gradient_direction_center"
+    const val GRADIENT_DIRECTION_TOP_TO_BOTTOM = "newaudio_gradient_direction_top_to_bottom"
+    const val GRADIENT_DIRECTION_BOTTOM_TO_TOP = "newaudio_gradient_direction_bottom_to_top"
+    const val GRADIENT_DIRECTION_LEFT_TO_RIGHT = "newaudio_gradient_direction_left_to_right"
+    const val GRADIENT_DIRECTION_RIGHT_TO_LEFT = "newaudio_gradient_direction_right_to_left"
+    const val GRADIENT_DIRECTION_TOP_LEFT_TO_BOTTOM_RIGHT =
+        "newaudio_gradient_direction_top_left_to_bottom_right"
+    const val GRADIENT_DIRECTION_BOTTOM_RIGHT_TO_TOP_LEFT =
+        "newaudio_gradient_direction_bottom_right_to_top_left"
+    const val GRADIENT_DIRECTION_TOP_RIGHT_TO_BOTTOM_LEFT =
+        "newaudio_gradient_direction_top_right_to_bottom_left"
+    const val GRADIENT_DIRECTION_BOTTOM_LEFT_TO_TOP_RIGHT =
+        "newaudio_gradient_direction_bottom_left_to_top_right"
     const val PLAYLIST = "newaudio_playlist"
     const val INLINE_VIDEO = "newaudio_inline_video"
     const val VIDEO_FULLSCREEN = "newaudio_video_fullscreen"

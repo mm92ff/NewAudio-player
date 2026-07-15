@@ -2,9 +2,7 @@ package com.example.newaudio.fake
 
 import com.example.newaudio.domain.model.Playlist
 import com.example.newaudio.domain.model.Song
-import com.example.newaudio.domain.model.UserPreferences
 import com.example.newaudio.domain.repository.IPlaylistRepository
-import com.example.newaudio.domain.repository.ImportResult
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -13,12 +11,6 @@ import kotlinx.coroutines.flow.flowOf
 class FakePlaylistRepository : IPlaylistRepository {
 
     private val _playlists = MutableStateFlow<List<Playlist>>(emptyList())
-    var exportCalled = false
-    var exportReturnValue = true
-    var exportedPreferences: UserPreferences? = null
-    var importReturnPreferences: UserPreferences? = null
-    var importShouldThrow = false
-    var exportShouldThrow = false
 
     override fun getAllPlaylists(): Flow<List<Playlist>> = _playlists.asStateFlow()
 
@@ -60,15 +52,4 @@ class FakePlaylistRepository : IPlaylistRepository {
 
     override fun getSongsInPlaylist(playlistId: Long): Flow<List<Song>> = flowOf(emptyList())
 
-    override suspend fun exportPlaylists(filePath: String, userPreferences: UserPreferences): Boolean {
-        if (exportShouldThrow) throw RuntimeException("Export failed")
-        exportCalled = true
-        exportedPreferences = userPreferences
-        return exportReturnValue
-    }
-
-    override suspend fun importPlaylists(filePath: String): ImportResult {
-        if (importShouldThrow) throw RuntimeException("Import failed")
-        return ImportResult(0, 0, 0, 0, importReturnPreferences)
-    }
 }

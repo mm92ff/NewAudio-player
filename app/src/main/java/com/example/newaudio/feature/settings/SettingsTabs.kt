@@ -24,9 +24,11 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import com.example.newaudio.R
 import com.example.newaudio.domain.model.UserPreferences
+import com.example.newaudio.domain.model.UserPreferences.GradientDirection
 import com.example.newaudio.domain.model.UserPreferences.Theme
 import com.example.newaudio.domain.model.UserPreferences.VideoDisplayMode
 import com.example.newaudio.feature.settings.composables.BackgroundGradientSetting
+import com.example.newaudio.feature.settings.composables.BackgroundGradientDirectionSetting
 import com.example.newaudio.feature.settings.composables.BackgroundTintSetting
 import com.example.newaudio.feature.settings.composables.BluetoothAutoplaySetting
 import com.example.newaudio.feature.settings.composables.ColorSetting
@@ -75,6 +77,7 @@ data class DesignSettingsActions(
     val onPrimaryColorChange: (String) -> Unit = {},
     val onBackgroundTintFractionChange: (Float) -> Unit = {},
     val onBackgroundGradientEnabledChange: (Boolean) -> Unit = {},
+    val onBackgroundGradientDirectionChange: (GradientDirection) -> Unit = {},
     val onTransparentListItemsChange: (Boolean) -> Unit = {},
     val onSettingsCardTransparentChange: (Boolean) -> Unit = {},
     val onSettingsCardBorderWidthChange: (Float) -> Unit = {},
@@ -232,6 +235,14 @@ private fun DesignSettingsTab(
                 settings.backgroundGradientEnabled,
                 actions.onBackgroundGradientEnabledChange
             )
+        }
+        if (settings.backgroundGradientEnabled) {
+            item {
+                BackgroundGradientDirectionSetting(
+                    selectedDirection = settings.backgroundGradientDirection,
+                    onDirectionSelected = actions.onBackgroundGradientDirectionChange
+                )
+            }
         }
         item { TransparentListItemsSetting(settings.transparentListItems, actions.onTransparentListItemsChange) }
         item {

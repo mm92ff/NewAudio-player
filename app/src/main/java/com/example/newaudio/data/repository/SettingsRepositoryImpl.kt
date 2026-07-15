@@ -52,6 +52,7 @@ class SettingsRepositoryImpl @Inject constructor(
         val SHOW_FOLDER_SONG_COUNT = booleanPreferencesKey("show_folder_song_count")
         val BACKGROUND_TINT_FRACTION = floatPreferencesKey("background_tint_fraction")
         val BACKGROUND_GRADIENT_ENABLED = booleanPreferencesKey("background_gradient_enabled")
+        val BACKGROUND_GRADIENT_DIRECTION = stringPreferencesKey("background_gradient_direction")
         val TRANSPARENT_LIST_ITEMS = booleanPreferencesKey("transparent_list_items")
         val SETTINGS_CARD_TRANSPARENT = booleanPreferencesKey("settings_card_transparent")
         val SETTINGS_CARD_BORDER_WIDTH = floatPreferencesKey("settings_card_border_width")
@@ -90,6 +91,11 @@ class SettingsRepositoryImpl @Inject constructor(
             val repeatMode = safeEnumValueOf(
                 preferences[Keys.REPEAT_MODE],
                 defaultValues.repeatMode
+            )
+
+            val backgroundGradientDirection = safeEnumValueOf(
+                preferences[Keys.BACKGROUND_GRADIENT_DIRECTION],
+                defaultValues.backgroundGradientDirection
             )
 
             // Fix: Unified value for marquee
@@ -138,6 +144,7 @@ class SettingsRepositoryImpl @Inject constructor(
                 showFolderSongCount = preferences[Keys.SHOW_FOLDER_SONG_COUNT] ?: defaultValues.showFolderSongCount,
                 backgroundTintFraction = preferences[Keys.BACKGROUND_TINT_FRACTION] ?: defaultValues.backgroundTintFraction,
                 backgroundGradientEnabled = preferences[Keys.BACKGROUND_GRADIENT_ENABLED] ?: defaultValues.backgroundGradientEnabled,
+                backgroundGradientDirection = backgroundGradientDirection,
                 transparentListItems = preferences[Keys.TRANSPARENT_LIST_ITEMS] ?: defaultValues.transparentListItems,
                 settingsCardTransparent = preferences[Keys.SETTINGS_CARD_TRANSPARENT] ?: defaultValues.settingsCardTransparent,
                 settingsCardBorderWidth = preferences[Keys.SETTINGS_CARD_BORDER_WIDTH] ?: defaultValues.settingsCardBorderWidth,
@@ -254,6 +261,10 @@ class SettingsRepositoryImpl @Inject constructor(
         dataStore.edit { it[Keys.BACKGROUND_GRADIENT_ENABLED] = enabled }
     }
 
+    override suspend fun setBackgroundGradientDirection(direction: UserPreferences.GradientDirection) {
+        dataStore.edit { it[Keys.BACKGROUND_GRADIENT_DIRECTION] = direction.name }
+    }
+
     override suspend fun setTransparentListItems(enabled: Boolean) {
         dataStore.edit { it[Keys.TRANSPARENT_LIST_ITEMS] = enabled }
     }
@@ -295,6 +306,7 @@ class SettingsRepositoryImpl @Inject constructor(
             p[Keys.SHOW_FOLDER_SONG_COUNT] = prefs.showFolderSongCount
             p[Keys.BACKGROUND_TINT_FRACTION] = prefs.backgroundTintFraction
             p[Keys.BACKGROUND_GRADIENT_ENABLED] = prefs.backgroundGradientEnabled
+            p[Keys.BACKGROUND_GRADIENT_DIRECTION] = prefs.backgroundGradientDirection.name
             p[Keys.TRANSPARENT_LIST_ITEMS] = prefs.transparentListItems
             p[Keys.SETTINGS_CARD_TRANSPARENT] = prefs.settingsCardTransparent
             p[Keys.SETTINGS_CARD_BORDER_WIDTH] = prefs.settingsCardBorderWidth

@@ -1,0 +1,11 @@
+[Desktop Entry]
+Version=1.0
+Type=Application
+Name=Create NewAudio Backup
+Comment=Create and verify an unencrypted NewAudio backup in the project folder
+Exec=/home/jemi/Desktop/Github/newaudio/create-project-backup.sh --pause
+Path=/home/jemi/Desktop/Github/newaudio
+Icon=document-save
+Terminal=true
+Categories=Utility;
+StartupNotify=false

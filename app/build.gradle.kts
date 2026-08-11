@@ -15,8 +15,8 @@ android {
         applicationId = "com.example.newaudio"
         minSdk = 23
         targetSdk = 35
-        versionCode = 241
-        versionName = "2.41-beta"
+        versionCode = 243
+        versionName = "2.43-beta"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         buildConfigField("boolean", "BENCHMARK", "false")
 

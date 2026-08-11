@@ -6,8 +6,6 @@ import androidx.compose.foundation.combinedClickable
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
-import androidx.compose.foundation.gestures.detectDragGestures
-import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material.icons.Icons
@@ -20,7 +18,6 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.zIndex
@@ -35,6 +32,7 @@ import com.example.newaudio.domain.model.MediaBrowserMode
 import com.example.newaudio.domain.model.Playlist
 import com.example.newaudio.domain.model.VideoPlaylist
 import com.example.newaudio.feature.filebrowser.composables.*
+import com.example.newaudio.feature.player.VideoGestureInputSurface
 import com.example.newaudio.ui.BenchmarkPlaybackPositionProbe
 import com.example.newaudio.ui.NewAudioTestTags
 import com.example.newaudio.ui.theme.Dimens
@@ -488,11 +486,9 @@ private fun InlineVideoPlayer(
     onPlayerViewChanged: (PlayerView?) -> Unit,
     modifier: Modifier = Modifier
 ) {
-    var totalDragX by remember { mutableFloatStateOf(0f) }
     var currentPlayerView by remember { mutableStateOf<PlayerView?>(null) }
     var firstFrameRendered by remember(player, attachPlayerDirectly) { mutableStateOf(false) }
     var playbackReady by remember(player, attachPlayerDirectly) { mutableStateOf(false) }
-    val swipeThresholdPx = 96f
 
     // Keying the state and listener to the attachment makes the first-frame reset
     // synchronous with a PlayerView target switch. A frame from the detached inline
@@ -576,31 +572,12 @@ private fun InlineVideoPlayer(
                 )
             }
         }
-        Box(
-            modifier = Modifier
-                .fillMaxSize()
-                .pointerInput(onToggleFullscreen) {
-                    detectTapGestures(
-                        onDoubleTap = { onToggleFullscreen() }
-                    )
-                }
-                .pointerInput(onSwipeNext, onSwipePrevious) {
-                    detectDragGestures(
-                        onDragStart = { totalDragX = 0f },
-                        onDrag = { change, dragAmount ->
-                            change.consume()
-                            totalDragX += dragAmount.x
-                        },
-                        onDragEnd = {
-                            when {
-                                totalDragX <= -swipeThresholdPx -> onSwipeNext()
-                                totalDragX >= swipeThresholdPx -> onSwipePrevious()
-                            }
-                            totalDragX = 0f
-                        },
-                        onDragCancel = { totalDragX = 0f }
-                    )
-                }
+        VideoGestureInputSurface(
+            onDoubleTap = onToggleFullscreen,
+            onSwipeNext = onSwipeNext,
+            onSwipePrevious = onSwipePrevious,
+            testTag = NewAudioTestTags.INLINE_VIDEO_GESTURE_SURFACE,
+            modifier = Modifier.fillMaxSize()
         )
     }
 }

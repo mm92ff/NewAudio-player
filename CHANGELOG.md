@@ -7,6 +7,9 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+### Changed
+- Video brightness and volume gestures now use the left and right screen halves in both inline and fullscreen playback, with shared feedback and preserved horizontal navigation
+
 ---
 
 ## [2.41-beta] — 2026-07-13

@@ -55,6 +55,7 @@ import androidx.compose.ui.semantics.CustomAccessibilityAction
 import androidx.compose.ui.semantics.customActions
 import androidx.compose.ui.semantics.onClick
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.core.view.WindowCompat
@@ -97,6 +98,9 @@ fun VideoFullscreenOverlay(
     val activity = remember(context) { context.findActivity() }
     var requestedOrientation by remember(player) {
         mutableStateOf(player.videoSize.toRequestedOrientation())
+    }
+    var currentVideoSize by remember(player) {
+        mutableStateOf(player.videoSize)
     }
     var timelineVisible by remember { mutableStateOf(false) }
     var timelinePinnedForBenchmark by remember { mutableStateOf(false) }
@@ -152,6 +156,7 @@ fun VideoFullscreenOverlay(
     DisposableEffect(player) {
         val listener = object : Player.Listener {
             override fun onVideoSizeChanged(newVideoSize: VideoSize) {
+                currentVideoSize = newVideoSize
                 val orientation = newVideoSize.toRequestedOrientation()
                 if (orientation != null) {
                     requestedOrientation = orientation
@@ -306,63 +311,66 @@ fun VideoFullscreenOverlay(
                         }
                 )
             }
-                VideoTimelineOverlay(
-                    positionMs = timelinePositionMs,
-                    durationMs = timelineDurationMs,
-                    isPlaying = isPlayerPlaying,
-                    onSeekPreview = { position ->
-                        isSeekingTimeline = true
-                        timelinePositionMs = position
-                        timelineInteractionNonce++
-                    },
+            VideoTimelineOverlay(
+                positionMs = timelinePositionMs,
+                durationMs = timelineDurationMs,
+                isPlaying = isPlayerPlaying,
+                onSeekPreview = { position ->
+                    isSeekingTimeline = true
+                    timelinePositionMs = position
+                    timelineInteractionNonce++
+                },
                 onSeekFinished = {
                     player.seekTo(timelinePositionMs.coerceIn(0L, timelineDurationMs))
-                        isSeekingTimeline = false
+                    isSeekingTimeline = false
+                    timelineInteractionNonce++
+                },
+                onPlayPause = {
+                    if (player.isPlaying) {
+                        player.pause()
+                    } else {
+                        player.play()
+                    }
+                    isPlayerPlaying = player.isPlaying
+                    timelineInteractionNonce++
+                },
+                markersEnabled = markersEnabled,
+                markers = markers,
+                onAddMarker = {
+                    onAddMarker(timelinePositionMs.coerceIn(0L, timelineDurationMs))
+                    timelineInteractionNonce++
+                },
+                onMoveMarker = { markerId, positionMs ->
+                    onMoveMarker(markerId, positionMs.coerceIn(0L, timelineDurationMs))
+                    timelineInteractionNonce++
+                },
+                onDeleteNearestMarker = {
+                    markers.nearestTo(timelinePositionMs)?.let { marker ->
+                        onDeleteMarker(marker.id)
                         timelineInteractionNonce++
-                    },
-                    onPlayPause = {
-                        if (player.isPlaying) {
-                            player.pause()
-                        } else {
-                            player.play()
-                        }
-                        isPlayerPlaying = player.isPlaying
+                    }
+                },
+                onJumpToPreviousMarker = {
+                    markers.previousMarkerPosition(timelinePositionMs)?.let { position ->
+                        player.seekTo(position.coerceIn(0L, timelineDurationMs))
+                        timelinePositionMs = position.coerceIn(0L, timelineDurationMs)
                         timelineInteractionNonce++
-                    },
-                    markersEnabled = markersEnabled,
-                    markers = markers,
-                    onAddMarker = {
-                        onAddMarker(timelinePositionMs.coerceIn(0L, timelineDurationMs))
+                    }
+                },
+                onJumpToNextMarker = {
+                    markers.nextMarkerPosition(timelinePositionMs)?.let { position ->
+                        player.seekTo(position.coerceIn(0L, timelineDurationMs))
+                        timelinePositionMs = position.coerceIn(0L, timelineDurationMs)
                         timelineInteractionNonce++
-                    },
-                    onMoveMarker = { markerId, positionMs ->
-                        onMoveMarker(markerId, positionMs.coerceIn(0L, timelineDurationMs))
-                        timelineInteractionNonce++
-                    },
-                    onDeleteNearestMarker = {
-                        markers.nearestTo(timelinePositionMs)?.let { marker ->
-                            onDeleteMarker(marker.id)
-                            timelineInteractionNonce++
-                        }
-                    },
-                    onJumpToPreviousMarker = {
-                        markers.previousMarkerPosition(timelinePositionMs)?.let { position ->
-                            player.seekTo(position.coerceIn(0L, timelineDurationMs))
-                            timelinePositionMs = position.coerceIn(0L, timelineDurationMs)
-                            timelineInteractionNonce++
-                        }
-                    },
-                    onJumpToNextMarker = {
-                        markers.nextMarkerPosition(timelinePositionMs)?.let { position ->
-                            player.seekTo(position.coerceIn(0L, timelineDurationMs))
-                            timelinePositionMs = position.coerceIn(0L, timelineDurationMs)
-                            timelineInteractionNonce++
-                        }
-                    },
-                    modifier = Modifier
-                        .align(Alignment.BottomCenter)
-                        .fillMaxWidth()
-                    .padding(horizontal = 16.dp, vertical = 28.dp)
+                    }
+                },
+                modifier = Modifier
+                    .align(Alignment.BottomCenter)
+                    .fillMaxWidth()
+                    .padding(
+                        horizontal = 16.dp,
+                        vertical = fullscreenTimelineVerticalPadding(currentVideoSize)
+                    )
             )
         }
     }
@@ -565,9 +573,15 @@ internal fun VideoMarkerTicks(
 
 private const val MARKER_ACCESSIBILITY_STEP_MS = 5_000L
 
+internal fun fullscreenTimelineVerticalPadding(videoSize: VideoSize): Dp =
+    if (videoSize.hasLandscapeDimensions()) 0.dp else 28.dp
+
+private fun VideoSize.hasLandscapeDimensions(): Boolean =
+    width > height && height > 0
+
 private fun VideoSize.toRequestedOrientation(): Int? {
     return when {
-        width > height && height > 0 -> ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE
+        hasLandscapeDimensions() -> ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE
         height > width && width > 0 -> ActivityInfo.SCREEN_ORIENTATION_SENSOR_PORTRAIT
         else -> null
     }

@@ -1,0 +1,5 @@
+# Keep repository text files deterministic across operating systems.
+* text=auto eol=lf
+
+# Windows command scripts use their native line endings in the working tree.
+*.bat text eol=crlf

@@ -7,12 +7,20 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
-### Changed
-- Video brightness and volume gestures now use the left and right screen halves in both inline and fullscreen playback, with shared feedback and preserved horizontal navigation
-
 ---
 
-## [2.41-beta] — 2026-07-13
+## [2.43-beta] — 2026-08-13
+
+### Added
+- Added four-tab settings navigation and a directional background-gradient picker with backwards-compatible preference handling
+- Added a dedicated Macrobenchmark and trace-analysis toolchain with deterministic audio, video, and artwork fixtures
+- Added a dedicated `newaudio` emulator workflow and reproducible local project-backup helpers
+
+### Changed
+- Video brightness and volume gestures now use the left and right screen halves in both inline and fullscreen playback, with shared feedback and preserved horizontal navigation
+- Refactored Media3 controller ownership, playback transitions, queue state, error mapping, and persisted playback snapshots for deterministic lifecycle handling
+- Reworked playlist backup, import, and CRUD paths around bounded validation, explicit storage abstractions, Room transactions, and stable ordering
+- Docked the fullscreen video timeline to the bottom edge in landscape while preserving portrait and portrait-video layouts
 
 ### Security and reliability
 - Hardened MediaSession controller authorization and validated equalizer commands
@@ -27,7 +35,13 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 - Added Room v3–v7 migration coverage with shared audio/video playlist entries and markers
 - Added a real debug-only DocumentsProvider test for Unicode, wildcard characters, nested creation, rename, stream I/O, and recursive delete
 - Added regression tests for SAF stream failures, backup byte limits, playback write ordering, error acknowledgement, refresh races, and extreme artwork dimensions
-- Added Gradle dependency locking, a checksum-pinned Gradle wrapper, R8/resource shrinking, and a CI gate for API 23, 29, 32, 33, 34, and 35
+- Added Gradle dependency locking, a checksum-pinned Gradle wrapper, R8/resource shrinking, release isolation checks, secret scanning, and an SBOM vulnerability gate
+- Added CI instrumentation coverage for Android API 23, 29, 32, 33, 34, and 35
+- Scoped the release SBOM to dependencies shipped in the app and kept benchmark tooling isolated from debug and release artifacts
+
+---
+
+## [2.40-beta] — 2026-07-05
 
 ### Added
 - Dedicated Video mode with its own folder setup, media scan, browser state, playback session, and mini-player integration

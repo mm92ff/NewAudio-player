@@ -11,7 +11,7 @@ NewAudio is a modern Android audio and video player built with Jetpack Compose, 
 - **Video Gallery** - Optional thumbnail gallery with 2, 3, or 4 columns, square or portrait-friendly thumbnails, filled/cropped display, and optional filename overlays
 - **Video Thumbnails** - Coil video thumbnails with caching, fallback video icons, and folder tiles with names and media counts
 - **Video Fullscreen Controls** - Double tap to enter/exit fullscreen, swipe left/right for previous/next video with wrap-around, tap to show timeline, and pinch to switch video fit mode
-- **Brightness & Volume Gestures** - In fullscreen video mode, vertical swipe in the upper half adjusts screen brightness; vertical swipe in the lower half adjusts volume
+- **Brightness & Volume Gestures** - In inline and fullscreen video playback, a vertical swipe on the left screen half adjusts brightness and a vertical swipe on the right screen half adjusts volume
 - **Video Markers** - Optional fullscreen-only markers for important video moments, including add, move, delete, previous/next marker navigation, and marker backup/restore
 - **Playlist Management** - Separate audio and video playlists with create, edit, reorder, duplicate, export, import, and playback support
 - **Backup & Restore** - Export and import playlists, settings, video playlists, and video markers with hash-based matching for restored media

@@ -112,14 +112,17 @@ jobs:
           chmod +x gradlew
           sudo chmod 666 /dev/kvm
           cmdline_archive="$RUNNER_TEMP/commandlinetools-linux.zip"
-          cmdline_root="$RUNNER_TEMP/android-cmdline-tools"
+          cmdline_extract="$RUNNER_TEMP/android-cmdline-tools"
+          cmdline_root="$ANDROID_HOME/cmdline-tools/newaudio-22"
           curl --fail --location --retry 3 \
             --output "$cmdline_archive" \
             "https://dl.google.com/android/repository/commandlinetools-linux-${ANDROID_CMDLINE_TOOLS_BUILD}_latest.zip"
           echo "${ANDROID_CMDLINE_TOOLS_SHA1}  ${cmdline_archive}" | sha1sum --check --strict
-          unzip -q "$cmdline_archive" -d "$cmdline_root"
-          sdkmanager="$cmdline_root/cmdline-tools/bin/sdkmanager"
-          avdmanager="$cmdline_root/cmdline-tools/bin/avdmanager"
+          unzip -q "$cmdline_archive" -d "$cmdline_extract"
+          mkdir -p "$cmdline_root"
+          cp -R "$cmdline_extract/cmdline-tools/." "$cmdline_root/"
+          sdkmanager="$cmdline_root/bin/sdkmanager"
+          avdmanager="$cmdline_root/bin/avdmanager"
           yes | "$sdkmanager" --sdk_root="$ANDROID_HOME" \
             "platform-tools" \
             "emulator" \

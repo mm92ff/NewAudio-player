@@ -271,6 +271,7 @@ class SettingsTabsTest {
         )
 
         composeRule.onNodeWithTag(NewAudioTestTags.SETTINGS_TAB_DESIGN).performClick()
+        composeRule.onNodeWithTag(NewAudioTestTags.SETTINGS_SCROLL).performScrollToIndex(4)
         composeRule.onNodeWithTag(NewAudioTestTags.GRADIENT_DIRECTION_PICKER)
             .performScrollTo()
             .assertIsDisplayed()

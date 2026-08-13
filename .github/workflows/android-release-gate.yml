@@ -105,17 +105,31 @@ jobs:
           java-version: "17"
           cache: gradle
       - name: Create API ${{ matrix.api-level }} emulator
+        env:
+          ANDROID_CMDLINE_TOOLS_BUILD: "15859902"
+          ANDROID_CMDLINE_TOOLS_SHA1: "040d3996a65543d22ec4bf73e4c37aa37a8d4af4"
         run: |
           chmod +x gradlew
           sudo chmod 666 /dev/kvm
-          yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" \
+          cmdline_archive="$RUNNER_TEMP/commandlinetools-linux.zip"
+          cmdline_root="$RUNNER_TEMP/android-cmdline-tools"
+          curl --fail --location --retry 3 \
+            --output "$cmdline_archive" \
+            "https://dl.google.com/android/repository/commandlinetools-linux-${ANDROID_CMDLINE_TOOLS_BUILD}_latest.zip"
+          echo "${ANDROID_CMDLINE_TOOLS_SHA1}  ${cmdline_archive}" | sha1sum --check --strict
+          unzip -q "$cmdline_archive" -d "$cmdline_root"
+          sdkmanager="$cmdline_root/cmdline-tools/bin/sdkmanager"
+          avdmanager="$cmdline_root/cmdline-tools/bin/avdmanager"
+          yes | "$sdkmanager" --sdk_root="$ANDROID_HOME" \
             "platform-tools" \
             "emulator" \
             "system-images;android-${{ matrix.api-level }};google_apis;x86_64"
           echo "$ANDROID_HOME/platform-tools" >> "$GITHUB_PATH"
           echo "$ANDROID_HOME/emulator" >> "$GITHUB_PATH"
           export PATH="$ANDROID_HOME/platform-tools:$ANDROID_HOME/emulator:$PATH"
-          printf 'no\n' | "$ANDROID_HOME/cmdline-tools/latest/bin/avdmanager" create avd \
+          mkdir -p "$HOME/.android/avd"
+          export ANDROID_AVD_HOME="$HOME/.android/avd"
+          printf 'no\n' | "$avdmanager" create avd \
             --force \
             --name "newaudio-ci-${{ matrix.api-level }}" \
             --package "system-images;android-${{ matrix.api-level }};google_apis;x86_64" \

@@ -119,17 +119,37 @@ jobs:
             --force \
             --name "newaudio-ci-${{ matrix.api-level }}" \
             --package "system-images;android-${{ matrix.api-level }};google_apis;x86_64"
+          adb start-server
           nohup "$ANDROID_HOME/emulator/emulator" \
             -avd "newaudio-ci-${{ matrix.api-level }}" \
+            -port 5554 \
             -no-window \
             -no-audio \
             -no-boot-anim \
-            -gpu swiftshader_indirect > /tmp/emulator.log 2>&1 &
-          adb wait-for-device
-          until [ "$(adb shell getprop sys.boot_completed | tr -d '\r')" = "1" ]; do sleep 2; done
-          adb shell input keyevent 82
-          adb shell settings put global window_animation_scale 0
-          adb shell settings put global transition_animation_scale 0
-          adb shell settings put global animator_duration_scale 0
+            -no-snapshot \
+            -gpu swiftshader > /tmp/emulator.log 2>&1 &
+          emulator_pid=$!
+          for boot_attempt in $(seq 1 150); do
+            if ! kill -0 "$emulator_pid" 2>/dev/null; then
+              echo "Emulator stopped before Android finished booting."
+              cat /tmp/emulator.log
+              exit 1
+            fi
+            if [ "$(adb -s emulator-5554 shell getprop sys.boot_completed 2>/dev/null | tr -d '\r')" = "1" ]; then
+              break
+            fi
+            if [ "$boot_attempt" -eq 150 ]; then
+              echo "Timed out waiting five minutes for Android to boot."
+              cat /tmp/emulator.log
+              exit 1
+            fi
+            sleep 2
+          done
+          adb -s emulator-5554 shell input keyevent 82
+          adb -s emulator-5554 shell settings put global window_animation_scale 0
+          adb -s emulator-5554 shell settings put global transition_animation_scale 0
+          adb -s emulator-5554 shell settings put global animator_duration_scale 0
       - name: Run instrumentation and migration tests
+        env:
+          ANDROID_SERIAL: emulator-5554
         run: ./gradlew --no-daemon :app:connectedDebugAndroidTest

@@ -9,6 +9,19 @@ plugins {
     id("com.google.dagger.hilt.android") version "2.51.1" apply false
 }
 
+subprojects {
+    tasks.withType<org.cyclonedx.gradle.CyclonedxDirectTask>().configureEach {
+        when (project.path) {
+            ":app" -> {
+                // The release SBOM must describe only dependencies shipped with the app.
+                includeConfigs.set(listOf("releaseRuntimeClasspath"))
+            }
+
+            ":benchmark" -> enabled = false
+        }
+    }
+}
+
 allprojects {
     dependencyLocking {
         lockAllConfigurations()

@@ -178,19 +178,19 @@ internal class BenchmarkJourneys(
         title: String = BenchmarkConfig.FIRST_AUDIO_TITLE,
         expectEmbeddedAlbumArt: Boolean = true
     ) {
-        val miniPlayer = ui.device.findObject(BenchmarkSelectors.miniPlayer)
-        if (miniPlayer != null) {
-            miniPlayer.click()
-            ui.device.waitForIdle()
-        }
         if (ui.device.findObject(BenchmarkSelectors.fullPlayer) == null) {
-            ui.clickLowestText(title)
+            // The MINI_PLAYER tag belongs to its non-clickable Surface. Target the
+            // tagged title instead so clickNodeOrAncestor invokes the actual title action.
+            ui.click(BenchmarkSelectors.currentAudio(title), "mini-player title")
         }
-        ui.waitForAny(
-            listOf(
-                BenchmarkSelectors.fullPlayer to "full player root tag",
-                BenchmarkSelectors.playerSeekBar to "full player seek bar"
-            ),
+        ui.waitFor(
+            BenchmarkSelectors.fullPlayer,
+            "full player root tag",
+            BenchmarkConfig.PLAYBACK_READY_TIMEOUT_MS
+        )
+        ui.waitFor(
+            BenchmarkSelectors.playerSeekBar,
+            "full player seek bar",
             BenchmarkConfig.PLAYBACK_READY_TIMEOUT_MS
         )
         ui.waitFor(

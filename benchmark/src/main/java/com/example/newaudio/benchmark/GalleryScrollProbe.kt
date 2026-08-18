@@ -3,6 +3,7 @@ package com.example.newaudio.benchmark
 import androidx.test.platform.app.InstrumentationRegistry
 import androidx.test.uiautomator.By
 import androidx.test.uiautomator.Direction
+import androidx.test.uiautomator.StaleObjectException
 import androidx.test.uiautomator.UiDevice
 import java.util.regex.Pattern
 
@@ -71,14 +72,24 @@ internal class GalleryScrollProbe(
         ui.verticalSwipe(gallery, towardEnd = false)
     }
 
-    private fun visibleVideoNames(): Set<String> = ui.device
-        .findObjects(VIDEO_FILE_TEXT)
-        .filter { it.visibleBounds.width() > 0 && it.visibleBounds.height() > 0 }
-        .mapNotNull { it.text }
-        .toSortedSet()
+    private fun visibleVideoNames(): Set<String> {
+        repeat(STALE_NODE_RETRIES) {
+            try {
+                return ui.device.findObjects(VIDEO_FILE_TEXT)
+                    .filter { it.visibleBounds.width() > 0 && it.visibleBounds.height() > 0 }
+                    .mapNotNull { it.text }
+                    .toSortedSet()
+            } catch (_: StaleObjectException) {
+                ui.device.waitForIdle(STALE_NODE_RETRY_DELAY_MS)
+            }
+        }
+        return ui.fail("Could not obtain a stable snapshot of visible gallery videos")
+    }
 
     private companion object {
         const val MAX_RESET_SCROLLS = 12
+        const val STALE_NODE_RETRIES = 4
+        const val STALE_NODE_RETRY_DELAY_MS = 100L
         val VIDEO_FILE_TEXT = By.text(Pattern.compile("Video_.+\\.mp4"))
     }
 }

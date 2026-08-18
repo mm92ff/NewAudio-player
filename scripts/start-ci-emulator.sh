@@ -50,7 +50,6 @@ readonly emulator_port="5554"
 readonly emulator_serial="emulator-${emulator_port}"
 readonly system_image="system-images;android-${api_level};google_apis;x86_64"
 
-chmod +x gradlew
 sudo chmod 666 /dev/kvm
 
 cmdline_archive="$RUNNER_TEMP/commandlinetools-linux-${cmdline_tools_build}.zip"

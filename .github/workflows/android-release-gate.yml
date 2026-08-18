@@ -105,70 +105,11 @@ jobs:
           java-version: "17"
           cache: gradle
       - name: Create API ${{ matrix.api-level }} emulator
-        env:
-          ANDROID_CMDLINE_TOOLS_BUILD: "15859902"
-          ANDROID_CMDLINE_TOOLS_SHA1: "040d3996a65543d22ec4bf73e4c37aa37a8d4af4"
         run: |
-          chmod +x gradlew
-          sudo chmod 666 /dev/kvm
-          cmdline_archive="$RUNNER_TEMP/commandlinetools-linux.zip"
-          cmdline_extract="$RUNNER_TEMP/android-cmdline-tools"
-          cmdline_root="$ANDROID_HOME/cmdline-tools/newaudio-22"
-          curl --fail --location --retry 3 \
-            --output "$cmdline_archive" \
-            "https://dl.google.com/android/repository/commandlinetools-linux-${ANDROID_CMDLINE_TOOLS_BUILD}_latest.zip"
-          echo "${ANDROID_CMDLINE_TOOLS_SHA1}  ${cmdline_archive}" | sha1sum --check --strict
-          unzip -q "$cmdline_archive" -d "$cmdline_extract"
-          mkdir -p "$cmdline_root"
-          cp -R "$cmdline_extract/cmdline-tools/." "$cmdline_root/"
-          sdkmanager="$cmdline_root/bin/sdkmanager"
-          avdmanager="$cmdline_root/bin/avdmanager"
-          yes | "$sdkmanager" --sdk_root="$ANDROID_HOME" \
-            "platform-tools" \
-            "emulator" \
-            "system-images;android-${{ matrix.api-level }};google_apis;x86_64"
-          echo "$ANDROID_HOME/platform-tools" >> "$GITHUB_PATH"
-          echo "$ANDROID_HOME/emulator" >> "$GITHUB_PATH"
-          export PATH="$ANDROID_HOME/platform-tools:$ANDROID_HOME/emulator:$PATH"
-          mkdir -p "$HOME/.android/avd"
-          export ANDROID_AVD_HOME="$HOME/.android/avd"
-          printf 'no\n' | "$avdmanager" create avd \
-            --force \
-            --name "newaudio-ci-${{ matrix.api-level }}" \
-            --package "system-images;android-${{ matrix.api-level }};google_apis;x86_64" \
-            --device pixel_6
-          "$ANDROID_HOME/emulator/emulator" -list-avds | \
-            grep -Fqx "newaudio-ci-${{ matrix.api-level }}"
-          adb start-server
-          nohup "$ANDROID_HOME/emulator/emulator" \
-            -avd "newaudio-ci-${{ matrix.api-level }}" \
-            -port 5554 \
-            -no-window \
-            -no-audio \
-            -no-boot-anim \
-            -no-snapshot \
-            -gpu swiftshader > /tmp/emulator.log 2>&1 &
-          emulator_pid=$!
-          for boot_attempt in $(seq 1 150); do
-            if ! kill -0 "$emulator_pid" 2>/dev/null; then
-              echo "Emulator stopped before Android finished booting."
-              cat /tmp/emulator.log
-              exit 1
-            fi
-            if [ "$(adb -s emulator-5554 shell getprop sys.boot_completed 2>/dev/null | tr -d '\r')" = "1" ]; then
-              break
-            fi
-            if [ "$boot_attempt" -eq 150 ]; then
-              echo "Timed out waiting five minutes for Android to boot."
-              cat /tmp/emulator.log
-              exit 1
-            fi
-            sleep 2
-          done
-          adb -s emulator-5554 shell input keyevent 82
-          adb -s emulator-5554 shell settings put global window_animation_scale 0
-          adb -s emulator-5554 shell settings put global transition_animation_scale 0
-          adb -s emulator-5554 shell settings put global animator_duration_scale 0
+          bash ./scripts/start-ci-emulator.sh \
+            "newaudio-ci-${{ matrix.api-level }}" \
+            "${{ matrix.api-level }}" \
+            /tmp/emulator.log
       - name: Run instrumentation and migration tests
         env:
           ANDROID_SERIAL: emulator-5554

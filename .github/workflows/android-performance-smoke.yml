@@ -37,27 +37,16 @@ jobs:
           cache: gradle
       - name: Create API 35 performance AVD
         run: |
-          chmod +x gradlew
-          sudo chmod 666 /dev/kvm
-          yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" \
-            "platform-tools" "emulator" "system-images;android-35;google_apis;x86_64"
-          echo no | "$ANDROID_HOME/cmdline-tools/latest/bin/avdmanager" create avd \
-            --force --name "newaudio-performance-api35" \
-            --package "system-images;android-35;google_apis;x86_64"
-          nohup "$ANDROID_HOME/emulator/emulator" \
-            -avd "newaudio-performance-api35" -no-window -no-audio -no-boot-anim \
-            -gpu swiftshader_indirect > /tmp/performance-emulator.log 2>&1 &
-          adb wait-for-device
-          until [ "$(adb shell getprop sys.boot_completed | tr -d '\r')" = "1" ]; do sleep 2; done
-          adb shell input keyevent 82
-          adb shell settings put global window_animation_scale 0
-          adb shell settings put global transition_animation_scale 0
-          adb shell settings put global animator_duration_scale 0
           if [ "${{ matrix.display-profile }}" = "large-font" ]; then
-            adb shell settings put system font_scale 1.30
+            font_scale=1.30
           else
-            adb shell settings put system font_scale 1.00
+            font_scale=1.00
           fi
+          bash ./scripts/start-ci-emulator.sh \
+            newaudio-performance-api35 \
+            35 \
+            /tmp/performance-emulator.log \
+            "$font_scale"
       - name: Run complete one-iteration metric class
         shell: pwsh
         run: |
@@ -107,23 +96,10 @@ jobs:
           cache: gradle
       - name: Create controlled API 35 reference AVD
         run: |
-          chmod +x gradlew
-          sudo chmod 666 /dev/kvm
-          yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" \
-            "platform-tools" "emulator" "system-images;android-35;google_apis;x86_64"
-          echo no | "$ANDROID_HOME/cmdline-tools/latest/bin/avdmanager" create avd \
-            --force --name "newaudio-series-api35" \
-            --package "system-images;android-35;google_apis;x86_64"
-          nohup "$ANDROID_HOME/emulator/emulator" \
-            -avd "newaudio-series-api35" -no-window -no-audio -no-boot-anim \
-            -gpu swiftshader_indirect > /tmp/series-emulator.log 2>&1 &
-          adb wait-for-device
-          until [ "$(adb shell getprop sys.boot_completed | tr -d '\r')" = "1" ]; do sleep 2; done
-          adb shell input keyevent 82
-          adb shell settings put global window_animation_scale 0
-          adb shell settings put global transition_animation_scale 0
-          adb shell settings put global animator_duration_scale 0
-          adb shell settings put system font_scale 1.00
+          bash ./scripts/start-ci-emulator.sh \
+            newaudio-series-api35 \
+            35 \
+            /tmp/series-emulator.log
       - name: Run independent full metric series ${{ matrix.series }}
         shell: pwsh
         run: |
@@ -171,23 +147,11 @@ jobs:
           cache: gradle
       - name: Create controlled large-font API 35 AVD
         run: |
-          chmod +x gradlew
-          sudo chmod 666 /dev/kvm
-          yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" \
-            "platform-tools" "emulator" "system-images;android-35;google_apis;x86_64"
-          echo no | "$ANDROID_HOME/cmdline-tools/latest/bin/avdmanager" create avd \
-            --force --name "newaudio-large-font-api35" \
-            --package "system-images;android-35;google_apis;x86_64"
-          nohup "$ANDROID_HOME/emulator/emulator" \
-            -avd "newaudio-large-font-api35" -no-window -no-audio -no-boot-anim \
-            -gpu swiftshader_indirect > /tmp/large-font-emulator.log 2>&1 &
-          adb wait-for-device
-          until [ "$(adb shell getprop sys.boot_completed | tr -d '\r')" = "1" ]; do sleep 2; done
-          adb shell input keyevent 82
-          adb shell settings put global window_animation_scale 0
-          adb shell settings put global transition_animation_scale 0
-          adb shell settings put global animator_duration_scale 0
-          adb shell settings put system font_scale 1.30
+          bash ./scripts/start-ci-emulator.sh \
+            newaudio-large-font-api35 \
+            35 \
+            /tmp/large-font-emulator.log \
+            1.30
       - name: Run full default metric class with large font
         shell: pwsh
         run: |
@@ -251,23 +215,10 @@ jobs:
           cache: gradle
       - name: Create API 35 trace AVD
         run: |
-          chmod +x gradlew
-          sudo chmod 666 /dev/kvm
-          yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" \
-            "platform-tools" "emulator" "system-images;android-35;google_apis;x86_64"
-          echo no | "$ANDROID_HOME/cmdline-tools/latest/bin/avdmanager" create avd \
-            --force --name "newaudio-trace-api35" \
-            --package "system-images;android-35;google_apis;x86_64"
-          nohup "$ANDROID_HOME/emulator/emulator" \
-            -avd "newaudio-trace-api35" -no-window -no-audio -no-boot-anim \
-            -gpu swiftshader_indirect > /tmp/trace-emulator.log 2>&1 &
-          adb wait-for-device
-          until [ "$(adb shell getprop sys.boot_completed | tr -d '\r')" = "1" ]; do sleep 2; done
-          adb shell input keyevent 82
-          adb shell settings put global window_animation_scale 0
-          adb shell settings put global transition_animation_scale 0
-          adb shell settings put global animator_duration_scale 0
-          adb shell settings put system font_scale 1.00
+          bash ./scripts/start-ci-emulator.sh \
+            newaudio-trace-api35 \
+            35 \
+            /tmp/trace-emulator.log
       - name: Install pinned Perfetto Trace Processor wrapper
         run: |
           curl -fsSL \

@@ -48,6 +48,8 @@ readonly cmdline_tools_build="15859902"
 readonly cmdline_tools_sha1="040d3996a65543d22ec4bf73e4c37aa37a8d4af4"
 readonly emulator_port="5554"
 readonly emulator_serial="emulator-${emulator_port}"
+readonly emulator_cores="2"
+readonly emulator_memory_mb="2048"
 readonly system_image="system-images;android-${api_level};google_apis;x86_64"
 
 sudo chmod 666 /dev/kvm
@@ -103,7 +105,10 @@ nohup "$ANDROID_HOME/emulator/emulator" \
     -no-window \
     -no-audio \
     -no-boot-anim \
+    -no-metrics \
     -no-snapshot \
+    -cores "$emulator_cores" \
+    -memory "$emulator_memory_mb" \
     -gpu swiftshader > "$emulator_log" 2>&1 &
 emulator_pid=$!
 
@@ -135,5 +140,9 @@ adb -s "$emulator_serial" shell settings put global window_animation_scale 0
 adb -s "$emulator_serial" shell settings put global transition_animation_scale 0
 adb -s "$emulator_serial" shell settings put global animator_duration_scale 0
 adb -s "$emulator_serial" shell settings put system font_scale "$font_scale"
+# Keep the launcher out of the foreground during the Gradle build. On headless
+# software rendering it can otherwise raise an unrelated ANR dialog that blocks
+# the subsequent instrumentation activity from becoming visible.
+adb -s "$emulator_serial" shell am start -W -a android.settings.SETTINGS >/dev/null
 
 echo "Android API $api_level is ready on $emulator_serial with font scale $font_scale."

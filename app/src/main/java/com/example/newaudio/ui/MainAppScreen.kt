@@ -285,7 +285,10 @@ fun MainAppScreen(
                     },
                     modifier = Modifier
                         .zIndex(100f)
-                        .align(Alignment.TopStart)
+                        // Keep the benchmark-only semantics node inside the visible window.
+                        // A top-edge node is removed from the accessibility hierarchy when
+                        // the status bar overlaps it (especially with larger display text).
+                        .align(Alignment.Center)
                 )
             }
 

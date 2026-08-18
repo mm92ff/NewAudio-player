@@ -25,6 +25,15 @@ internal class BenchmarkDevice(
         device.executeShellCommand("settings put global animator_duration_scale 0")
         device.executeShellCommand("settings put secure immersive_mode_confirmations confirmed")
 
+        // Headless software rendering can starve the background launcher while Gradle
+        // builds the APK and leave a modal launcher ANR over the app. Stop either known
+        // launcher immediately before each iteration so that system UI cannot mask it.
+        BACKGROUND_LAUNCHER_PACKAGES.forEach { packageName ->
+            if (device.executeShellCommand("pm path $packageName").contains("package:")) {
+                device.executeShellCommand("am force-stop $packageName")
+            }
+        }
+
         if (Build.VERSION.SDK_INT >= 33) {
             grant("android.permission.READ_MEDIA_AUDIO")
             grant("android.permission.READ_MEDIA_VIDEO")
@@ -480,6 +489,11 @@ internal class BenchmarkDevice(
 
     companion object {
         private const val STALE_NODE_RETRIES = 4
+        private val BACKGROUND_LAUNCHER_PACKAGES = listOf(
+            "com.google.android.apps.nexuslauncher",
+            "com.android.launcher3"
+        )
+
         fun beginIteration(journeyId: String = "unknown"): Int {
             currentJourneyId = journeyId.ifBlank { "unknown" }
             return JOURNEY_ITERATIONS

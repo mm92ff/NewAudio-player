@@ -149,10 +149,12 @@ adb -s "$emulator_serial" shell settings put system font_scale "$font_scale"
 # software rendering it can otherwise raise an unrelated ANR dialog that blocks
 # the subsequent instrumentation activity from becoming visible.
 adb -s "$emulator_serial" shell am start -W -a android.settings.SETTINGS >/dev/null
-if adb -s "$emulator_serial" shell pm path com.google.android.apps.nexuslauncher 2>/dev/null |
-    grep -q '^package:'; then
-    adb -s "$emulator_serial" shell am force-stop com.google.android.apps.nexuslauncher
-fi
+for launcher_package in com.google.android.apps.nexuslauncher com.android.launcher3; do
+    if adb -s "$emulator_serial" shell pm path "$launcher_package" 2>/dev/null |
+        grep -q '^package:'; then
+        adb -s "$emulator_serial" shell am force-stop "$launcher_package"
+    fi
+done
 adb -s "$emulator_serial" get-state | grep -Fqx device
 
 echo "Android API $api_level is ready on $emulator_serial with font scale $font_scale."

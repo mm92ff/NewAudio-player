@@ -393,10 +393,8 @@ class TraceCaptureTest {
                 IdleWindowMetric(expectedJourney),
                 RequiredTraceSlicesMetric(
                     expectedJourney,
-                    requireFrames = expectedJourney !in setOf(
-                        TraceJourney.AUDIO_PAUSED,
-                        TraceJourney.VIDEO_FULLSCREEN
-                    )
+                    requireComposeSlices = expectedJourney !in STATIC_IDLE_TRACE_JOURNEYS,
+                    requireFrames = expectedJourney !in STATIC_IDLE_TRACE_JOURNEYS
                 )
             )
         } else {
@@ -420,6 +418,11 @@ class TraceCaptureTest {
 
     private companion object {
         const val TRACE_SHARD_ARGUMENT = "newaudio.trace.shard"
+
+        val STATIC_IDLE_TRACE_JOURNEYS = setOf(
+            TraceJourney.AUDIO_PAUSED,
+            TraceJourney.VIDEO_FULLSCREEN
+        )
 
         val TRACE_SHARDS = mapOf(
             "startup-navigation" to setOf(

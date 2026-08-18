@@ -227,7 +227,7 @@ internal class BenchmarkJourneys(
                 abs(position - EXPECTED_PRIMARY_AUDIO_SEEK_MS) <= SEEK_TARGET_TOLERANCE_MS
         }
         assertCurrentAudio(BenchmarkConfig.FIRST_AUDIO_TITLE, "audio after seek")
-        ui.click(BenchmarkSelectors.playPauseButton, "pause audio")
+        ui.clickSemantics(BenchmarkSelectors.playPauseButton, "pause audio")
         ui.waitForGone(BenchmarkSelectors.audioPlaybackReady, "audio playback readiness after pause")
         val pausedPosition = ui.readPosition(AUDIO_POSITION, "paused audio")
         SystemClock.sleep(PAUSED_POSITION_SAMPLE_DELAY_MS)
@@ -236,7 +236,7 @@ internal class BenchmarkJourneys(
             ui.fail("Paused audio position moved from $pausedPosition to $stablePausedPosition ms")
         }
         assertCurrentAudio(BenchmarkConfig.FIRST_AUDIO_TITLE, "paused audio")
-        ui.click(BenchmarkSelectors.playPauseButton, "resume audio")
+        ui.clickSemantics(BenchmarkSelectors.playPauseButton, "resume audio")
         ui.waitFor(BenchmarkSelectors.audioPlaybackReady, "audio playback readiness after resume")
         ui.waitForPosition(
             AUDIO_POSITION,
@@ -244,13 +244,13 @@ internal class BenchmarkJourneys(
             timeoutMs = BenchmarkConfig.PLAYBACK_READY_TIMEOUT_MS
         ) { position -> position > maxOf(positionAfterSeek, stablePausedPosition) + MIN_RESUME_DELTA_MS }
         assertCurrentAudio(BenchmarkConfig.FIRST_AUDIO_TITLE, "resumed audio")
-        ui.click(BenchmarkSelectors.nextButton, "next audio")
+        ui.clickSemantics(BenchmarkSelectors.nextButton, "next audio")
         assertCurrentAudio(BenchmarkConfig.NEXT_AUDIO_TITLE, "next audio")
         ui.waitFor(BenchmarkSelectors.audioPlaybackReady, "next audio playback readiness")
     }
 
     fun pauseAudioAndWait() {
-        ui.click(BenchmarkSelectors.playPauseButton, "pause audio")
+        ui.clickSemantics(BenchmarkSelectors.playPauseButton, "pause audio")
         ui.waitForGone(BenchmarkSelectors.audioPlaybackReady, "paused audio playback readiness")
     }
 

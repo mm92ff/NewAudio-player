@@ -399,10 +399,14 @@ internal class BenchmarkDevice(
             val current = queue.removeFirst()
             val matches = current.viewIdResourceName == resourceName ||
                 current.contentDescription?.toString() == contentDescription
-            if (matches && current.isClickable &&
-                current.performAction(AccessibilityNodeInfo.ACTION_CLICK)
-            ) {
-                return true
+            if (matches) {
+                var candidate: AccessibilityNodeInfo? = current
+                while (candidate != null && !candidate.isClickable) {
+                    candidate = candidate.parent
+                }
+                if (candidate?.performAction(AccessibilityNodeInfo.ACTION_CLICK) == true) {
+                    return true
+                }
             }
             repeat(current.childCount) { index ->
                 current.getChild(index)?.let(queue::addLast)

@@ -25,14 +25,7 @@ internal class BenchmarkDevice(
         device.executeShellCommand("settings put global animator_duration_scale 0")
         device.executeShellCommand("settings put secure immersive_mode_confirmations confirmed")
 
-        // Headless software rendering can starve the background launcher while Gradle
-        // builds the APK and leave a modal launcher ANR over the app. Stop either known
-        // launcher immediately before each iteration so that system UI cannot mask it.
-        BACKGROUND_LAUNCHER_PACKAGES.forEach { packageName ->
-            if (device.executeShellCommand("pm path $packageName").contains("package:")) {
-                device.executeShellCommand("am force-stop $packageName")
-            }
-        }
+        dismissLauncherAnrDialog()
 
         if (Build.VERSION.SDK_INT >= 33) {
             grant("android.permission.READ_MEDIA_AUDIO")
@@ -452,6 +445,25 @@ internal class BenchmarkDevice(
         device.executeShellCommand("pm grant ${BenchmarkConfig.TARGET_PACKAGE} $permission")
     }
 
+    private fun dismissLauncherAnrDialog() {
+        if (device.findObject(By.text(LAUNCHER_ANR_TITLE_PATTERN)) == null) return
+        val closeButton = device.findObject(By.res("android:id/aerr_close"))
+        if (closeButton != null) {
+            closeButton.click()
+            device.waitForIdle()
+            return
+        }
+
+        // Fallback for platform variants that expose the launcher ANR without the
+        // standard close-button resource. This path only runs while that dialog exists.
+        BACKGROUND_LAUNCHER_PACKAGES.forEach { packageName ->
+            if (device.executeShellCommand("pm path $packageName").contains("package:")) {
+                device.executeShellCommand("am force-stop $packageName")
+            }
+        }
+        device.waitForIdle()
+    }
+
     private fun relevantLogcat(): String = buildString {
         val packages = listOf(BenchmarkConfig.TARGET_PACKAGE, BenchmarkConfig.BENCHMARK_PACKAGE)
         packages.forEach { packageName ->
@@ -492,6 +504,9 @@ internal class BenchmarkDevice(
         private val BACKGROUND_LAUNCHER_PACKAGES = listOf(
             "com.google.android.apps.nexuslauncher",
             "com.android.launcher3"
+        )
+        private val LAUNCHER_ANR_TITLE_PATTERN = Pattern.compile(
+            "^(Quickstep|Pixel Launcher) isn't responding$"
         )
 
         fun beginIteration(journeyId: String = "unknown"): Int {

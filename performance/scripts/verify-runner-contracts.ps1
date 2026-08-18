@@ -29,6 +29,11 @@ function Assert-Rejected {
     -AllowDirty `
     -SkipSummary `
     -DryRun | Out-Null
+& $traceRunner `
+    -TraceShard 'audio-core' `
+    -AllowDirty `
+    -SkipSummary `
+    -DryRun | Out-Null
 
 Assert-Rejected -Label 'TraceCaptureTest in the metric runner' -Action {
     & $metricRunner -TestClass 'com.example.newaudio.benchmark.TraceCaptureTest' -DryRun
@@ -49,6 +54,21 @@ Assert-Rejected -Label 'an unknown metric method' -Action {
 }
 Assert-Rejected -Label 'an unknown trace method' -Action {
     & $traceRunner -TestClass 'com.example.newaudio.benchmark.TraceCaptureTest#traceTypo' -SkipSummary -DryRun
+}
+Assert-Rejected -Label 'an unknown trace shard' -Action {
+    & $traceRunner -TraceShard 'unknown-shard' -SkipSummary -DryRun
+}
+Assert-Rejected -Label 'a trace shard with a method selector' -Action {
+    & $traceRunner `
+        -TestClass 'com.example.newaudio.benchmark.TraceCaptureTest#traceColdStartup' `
+        -TraceShard 'startup-navigation' `
+        -SkipSummary `
+        -DryRun
+}
+Assert-Rejected -Label 'a runner-owned trace shard override' -Action {
+    & $traceRunner `
+        -AdditionalGradleArguments '-Pandroid.testInstrumentationRunnerArguments.newaudio.trace.shard=audio-core' `
+        -DryRun
 }
 Assert-Rejected -Label 'a contradictory cache-state override' -Action {
     & $metricRunner `

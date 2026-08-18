@@ -5,11 +5,14 @@ import androidx.benchmark.macro.FrameTimingMetric
 import androidx.benchmark.macro.StartupMode
 import androidx.benchmark.macro.StartupTimingMetric
 import androidx.benchmark.macro.junit4.MacrobenchmarkRule
+import androidx.test.platform.app.InstrumentationRegistry
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.filters.LargeTest
+import org.junit.Assume
 import org.junit.Before
 import org.junit.Rule
 import org.junit.Test
+import org.junit.rules.TestName
 import org.junit.runner.RunWith
 
 @OptIn(ExperimentalMetricApi::class)
@@ -19,8 +22,20 @@ class TraceCaptureTest {
     @get:Rule
     val benchmarkRule = MacrobenchmarkRule()
 
+    @get:Rule
+    val testName = TestName()
+
     @Before
     fun seedFixtures() {
+        val requestedShard = InstrumentationRegistry.getArguments().getString(TRACE_SHARD_ARGUMENT)
+        if (!requestedShard.isNullOrBlank()) {
+            val shardMethods = TRACE_SHARDS[requestedShard]
+                ?: error("Unknown trace shard '$requestedShard'")
+            Assume.assumeTrue(
+                "${testName.methodName} is outside trace shard '$requestedShard'",
+                testName.methodName in shardMethods
+            )
+        }
         BenchmarkFixtures().seedAll()
     }
 
@@ -401,5 +416,55 @@ class TraceCaptureTest {
         }
     ) {
         BenchmarkJourneys(this).journey()
+    }
+
+    private companion object {
+        const val TRACE_SHARD_ARGUMENT = "newaudio.trace.shard"
+
+        val TRACE_SHARDS = mapOf(
+            "startup-navigation" to setOf(
+                "traceColdStartup",
+                "traceNavigationSettings",
+                "traceNavigationPlaylist"
+            ),
+            "browser-scroll-folders" to setOf(
+                "traceAudioBrowserScroll",
+                "traceAudioBrowserIdle",
+                "traceVideoBrowserScroll",
+                "traceNestedFolderColdCache",
+                "traceNestedFolderWarmCache"
+            ),
+            "browser-gallery-playlists" to setOf(
+                "traceVideoGalleryTwoColumns",
+                "traceVideoGalleryThreeColumns",
+                "traceVideoGalleryFourColumns",
+                "traceAudioPlaylistScroll",
+                "traceVideoPlaylistScroll"
+            ),
+            "audio-core" to setOf(
+                "traceAudioMiniPlayerIdle",
+                "traceAudioFullPlayerIdle",
+                "traceAudioControls",
+                "traceSettingsDuringAudio",
+                "traceAudioPausedControlIdle"
+            ),
+            "audio-modes" to setOf(
+                "traceAudioRepeatOffIdle",
+                "traceAudioRepeatOneIdle",
+                "traceAudioMarqueeOffIdle",
+                "traceAudioMarqueeOnIdle"
+            ),
+            "video-core" to setOf(
+                "traceVideoInlineIdle",
+                "traceVideoFullscreenIdle",
+                "traceVideoControlsSeekAndMarker",
+                "traceVideoFullscreenInlineTransition"
+            ),
+            "video-gestures-markers" to setOf(
+                "traceVideoSwipeNextPrevious",
+                "traceVideoFullscreenMarkersOff",
+                "traceVideoFullscreenMarkersOnStable"
+            )
+        )
     }
 }

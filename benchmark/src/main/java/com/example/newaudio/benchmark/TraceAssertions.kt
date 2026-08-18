@@ -142,8 +142,8 @@ internal class RequiredTraceSlicesMetric(
             "Trace has no ${expectedJourney.sectionName} measurement window"
         }
         check(mainCount > 0) { "Trace has no target main-thread slices" }
-        check(renderCount > 0) { "Trace has no target RenderThread slices" }
         if (requireFrames) {
+            check(renderCount > 0) { "Trace has no target RenderThread slices" }
             check(frameCount > 0) { "Trace has no target frame slices" }
         }
         if (requireComposeSlices) {

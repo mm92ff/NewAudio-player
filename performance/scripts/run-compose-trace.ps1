@@ -3,6 +3,7 @@ param(
     [string]$TestClass = 'com.example.newaudio.benchmark.TraceCaptureTest',
     [string]$OutputDirectory,
     [string]$TraceProcessorPath,
+    [string]$TraceShard,
     [string[]]$AdditionalGradleArguments = @(),
     [string]$CacheState,
     [string]$DeviceRoleId,
@@ -179,6 +180,23 @@ if ($TestClass -notmatch '^com\.example\.newaudio\.benchmark\.TraceCaptureTest(?
 if ($TestClass -match '#([A-Za-z0-9_$]+)$' -and -not $traceJourneyByMethod.Contains($Matches[1])) {
     throw "Trace method '$($Matches[1])' has no versioned journey contract."
 }
+$allowedTraceShards = @(
+    'startup-navigation',
+    'browser-scroll-folders',
+    'browser-gallery-playlists',
+    'audio-core',
+    'audio-modes',
+    'video-core',
+    'video-gestures-markers'
+)
+if (-not [string]::IsNullOrWhiteSpace($TraceShard)) {
+    if ($TestClass -ne 'com.example.newaudio.benchmark.TraceCaptureTest') {
+        throw 'TraceShard requires the complete TraceCaptureTest selector.'
+    }
+    if ($TraceShard -notin $allowedTraceShards) {
+        throw "Unknown trace shard '$TraceShard'. Allowed values: $($allowedTraceShards -join ', ')."
+    }
+}
 Assert-NewAudioAdditionalGradleArguments -Arguments $AdditionalGradleArguments
 $provenance = Get-NewAudioRepositoryProvenance -RepositoryRoot $repositoryRoot
 Assert-NewAudioRepositoryPolicy -Provenance $provenance -AllowDirty:$AllowDirty
@@ -191,6 +209,9 @@ $arguments = @(
     "-Pandroid.testInstrumentationRunnerArguments.class=$TestClass",
     '-Pandroid.testInstrumentationRunnerArguments.androidx.benchmark.fullTracing.enable=true'
 ) + $AdditionalGradleArguments
+if (-not [string]::IsNullOrWhiteSpace($TraceShard)) {
+    $arguments += "-Pandroid.testInstrumentationRunnerArguments.newaudio.trace.shard=$TraceShard"
+}
 if (-not [string]::IsNullOrWhiteSpace($env:ANDROID_SERIAL)) {
     $arguments += "-Pandroid.injected.device.serial=$($env:ANDROID_SERIAL)"
 }
@@ -278,6 +299,7 @@ if ($gradleExitCode -ne 0) {
         commit = [string]$provenance.commit
         fullComposeTracing = $true
         testClass = $TestClass
+        traceShard = if ([string]::IsNullOrWhiteSpace($TraceShard)) { $null } else { $TraceShard }
         resolvedTestClass = 'TraceCaptureTest'
         resolvedTestMethod = if ($TestClass -match '#([A-Za-z0-9_$]+)$') { $Matches[1] } else { $null }
         gradleTask = ':benchmark:connectedBenchmarkAndroidTest'
@@ -361,6 +383,7 @@ $metadata = [ordered]@{
     commit = $provenance.commit
     repository = $provenance
     testClass = $TestClass
+    traceShard = if ([string]::IsNullOrWhiteSpace($TraceShard)) { $null } else { $TraceShard }
     resolvedTestClass = 'TraceCaptureTest'
     resolvedTestMethod = if ($TestClass -match '#([A-Za-z0-9_$]+)$') { $Matches[1] } else { $null }
     allowDirty = [bool]$AllowDirty

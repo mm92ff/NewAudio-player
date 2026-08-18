@@ -2,7 +2,7 @@ package com.example.newaudio.benchmark
 
 import androidx.test.platform.app.InstrumentationRegistry
 import androidx.test.uiautomator.By
-import androidx.test.uiautomator.Direction
+import androidx.test.uiautomator.BySelector
 import androidx.test.uiautomator.StaleObjectException
 import androidx.test.uiautomator.UiDevice
 import java.util.regex.Pattern
@@ -13,24 +13,26 @@ internal class GalleryScrollProbe(
     )
 ) {
     fun resetToStart(scenario: GalleryBenchmarkScenario) {
-        val gallery = ui.waitFor(
-            BenchmarkSelectors.videoGalleryColumns(scenario.columns),
-            "${scenario.columns}-column gallery reset for ${scenario.journeyId}"
+        val selector = BenchmarkSelectors.videoGalleryColumns(scenario.columns)
+        val label = "${scenario.columns}-column gallery reset for ${scenario.journeyId}"
+        ui.waitFor(selector, label)
+
+        var visible = scrollUntilFirstVideo(
+            selector = selector,
+            towardEnd = false,
+            label = label,
+            initialVisible = visibleVideoNames()
         )
-        var attempts = 0
-        while (attempts < MAX_RESET_SCROLLS && gallery.scroll(Direction.UP, 1.0f)) {
-            attempts++
-            ui.device.waitForIdle()
-        }
-        val deadline = System.currentTimeMillis() + BenchmarkConfig.DEFAULT_TIMEOUT_MS
-        while (BenchmarkConfig.FIRST_VIDEO !in visibleVideoNames() &&
-            System.currentTimeMillis() < deadline) {
-            // Item zero is the reachability spacer. Once the grid is at its absolute
-            // start, move forward past that spacer until the first media row is visible.
-            gallery.scroll(Direction.DOWN, 1.0f)
-            ui.device.waitForIdle(100L)
-        }
-        if (BenchmarkConfig.FIRST_VIDEO !in visibleVideoNames()) {
+
+        // Item zero is the reachability spacer. If the reset landed before the
+        // first media row, move forward until that row becomes visible.
+        visible = scrollUntilFirstVideo(
+            selector = selector,
+            towardEnd = true,
+            label = label,
+            initialVisible = visible
+        )
+        if (BenchmarkConfig.FIRST_VIDEO !in visible) {
             ui.fail("${scenario.journeyId} could not reset to the first root video")
         }
     }
@@ -72,6 +74,29 @@ internal class GalleryScrollProbe(
         ui.verticalSwipe(gallery, towardEnd = false)
     }
 
+    private fun scrollUntilFirstVideo(
+        selector: BySelector,
+        towardEnd: Boolean,
+        label: String,
+        initialVisible: Set<String>
+    ): Set<String> {
+        var visible = initialVisible
+        var stalledScrolls = 0
+        repeat(MAX_RESET_SCROLLS) {
+            if (BenchmarkConfig.FIRST_VIDEO in visible) return visible
+            ui.verticalSwipe(selector, towardEnd = towardEnd, label = label)
+            val after = visibleVideoNames()
+            if (after == visible) {
+                stalledScrolls++
+                if (stalledScrolls >= MAX_STALLED_SCROLLS) return visible
+            } else {
+                visible = after
+                stalledScrolls = 0
+            }
+        }
+        return visible
+    }
+
     private fun visibleVideoNames(): Set<String> {
         repeat(STALE_NODE_RETRIES) {
             try {
@@ -88,6 +113,7 @@ internal class GalleryScrollProbe(
 
     private companion object {
         const val MAX_RESET_SCROLLS = 12
+        const val MAX_STALLED_SCROLLS = 3
         const val STALE_NODE_RETRIES = 4
         const val STALE_NODE_RETRY_DELAY_MS = 100L
         val VIDEO_FILE_TEXT = By.text(Pattern.compile("Video_.+\\.mp4"))

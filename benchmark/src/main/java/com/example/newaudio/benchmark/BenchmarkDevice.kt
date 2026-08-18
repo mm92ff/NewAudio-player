@@ -173,7 +173,7 @@ internal class BenchmarkDevice(
         device.waitForIdle()
     }
 
-    private fun verticalSwipe(
+    fun verticalSwipe(
         container: BySelector,
         towardEnd: Boolean,
         label: String

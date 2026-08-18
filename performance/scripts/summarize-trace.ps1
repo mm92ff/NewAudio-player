@@ -179,6 +179,34 @@ function Resolve-TraceJourneyId {
     return ConvertTo-StableJourneyId -Value $Fallback
 }
 
+function ConvertTo-Int64OrZero {
+    param(
+        [AllowNull()][object]$Value,
+        [string]$FieldName
+    )
+
+    if ($null -eq $Value) { return [int64]0 }
+    $text = ([string]$Value).Trim()
+    if ([string]::IsNullOrWhiteSpace($text) -or $text -in @('[NULL]', 'NULL')) {
+        return [int64]0
+    }
+    $parsed = [int64]0
+    if (-not [int64]::TryParse(
+            $text,
+            [Globalization.NumberStyles]::Integer,
+            [Globalization.CultureInfo]::InvariantCulture,
+            [ref]$parsed)) {
+        throw "Trace query field '$FieldName' is not a valid Int64: '$text'."
+    }
+    return $parsed
+}
+
+function Test-RequiresActiveRendering {
+    param([string]$JourneyId)
+
+    return $JourneyId -notin @('AU-05', 'VI-02')
+}
+
 function Resolve-TraceReportIdentity {
     param($RunMetadata, [string]$DefaultMode, [string]$DefaultCompilationMode, [string]$TraceFileName)
 
@@ -293,6 +321,21 @@ function Invoke-SelfTest {
     if ((Resolve-TraceJourneyId -Discovery $markerDiscovery -Fallback 'ignored') -ne 'VI-06-MARKERS-ON') {
         throw 'Trace report self-test failed: named journey suffix normalization is incorrect.'
     }
+    if ((ConvertTo-Int64OrZero -Value '[NULL]' -FieldName 'self-test') -ne 0 -or
+        (ConvertTo-Int64OrZero -Value '42' -FieldName 'self-test') -ne 42) {
+        throw 'Trace report self-test failed: nullable integer conversion is incorrect.'
+    }
+    $invalidIntegerRejected = $false
+    try { ConvertTo-Int64OrZero -Value 'not-an-integer' -FieldName 'self-test' | Out-Null }
+    catch { $invalidIntegerRejected = $true }
+    if (-not $invalidIntegerRejected) {
+        throw 'Trace report self-test failed: invalid integer input was accepted.'
+    }
+    if ((Test-RequiresActiveRendering -JourneyId 'AU-05') -or
+        (Test-RequiresActiveRendering -JourneyId 'VI-02') -or
+        -not (Test-RequiresActiveRendering -JourneyId 'AU-03')) {
+        throw 'Trace report self-test failed: static idle rendering requirements are incorrect.'
+    }
     $run = [pscustomobject]@{
         schemaVersion = 3
         status = 'succeeded'; runId = 'trace-selftest'; commit = ('c' * 40); mode = 'diagnostic-full-compose-tracing'
@@ -395,23 +438,24 @@ $windowSource = if ($windowCount -gt 0) {
     'whole_trace_fallback'
 }
 $frameRows = @($results['frame_summary'])
-$frameCount = if ($frameRows.Count -gt 0 -and $null -ne $frameRows[0].frame_count) {
-    [int64]$frameRows[0].frame_count
-} else { 0 }
-$expectedFrameMissingCount = if ($frameRows.Count -gt 0 -and
-    $null -ne $frameRows[0].expected_frame_missing_count -and
-    -not [string]::IsNullOrWhiteSpace([string]$frameRows[0].expected_frame_missing_count)) {
-    [int64]$frameRows[0].expected_frame_missing_count
-} else { 0 }
+$frameCount = if ($frameRows.Count -gt 0) {
+    ConvertTo-Int64OrZero -Value $frameRows[0].frame_count -FieldName 'frame_count'
+} else { [int64]0 }
+$expectedFrameMissingCount = if ($frameRows.Count -gt 0) {
+    ConvertTo-Int64OrZero -Value $frameRows[0].expected_frame_missing_count `
+        -FieldName 'expected_frame_missing_count'
+} else { [int64]0 }
 $threadCount = @($results['main_thread_summary']).Count
 $resolvedJourney = Resolve-TraceJourneyId -Discovery $discovery -Fallback $Journey
-$framesRequired = $resolvedJourney -ne 'AU-05'
+$activeRenderingRequired = Test-RequiresActiveRendering -JourneyId $resolvedJourney
+$composeSlicesRequired = $activeRenderingRequired
+$framesRequired = $activeRenderingRequired
 
 $failures = [Collections.Generic.List[string]]::new()
 if ($windowCount -eq 0) {
     $failures.Add('No explicit NewAudio:* measurement window was found.')
 }
-if ($composeCount -eq 0 -and -not $AllowMissingComposeSlices) {
+if ($composeCount -eq 0 -and $composeSlicesRequired -and -not $AllowMissingComposeSlices) {
     $failures.Add('No Compose slices were found for com.example.newaudio.')
 }
 if ($frameCount -eq 0 -and $framesRequired -and -not $AllowMissingFrames) {
@@ -467,6 +511,7 @@ $metadata = [ordered]@{
         measurementWindowKinds = $windowCount
         benchmarkMeasureBlockKinds = $benchmarkWindowCount
         windowSource = $windowSource
+        composeSlicesRequired = $composeSlicesRequired
         frameCount = $frameCount
         framesRequired = $framesRequired
         expectedFrameMissingCount = $expectedFrameMissingCount
@@ -507,7 +552,9 @@ $markdown.Add("- Compose slice groups: $composeCount")
 $markdown.Add("- NewAudio measurement-window groups: $windowCount")
 $markdown.Add("- Benchmark measureBlock groups: $benchmarkWindowCount")
 $markdown.Add(('- Analysis window source: `{0}`' -f $windowSource))
+$markdown.Add("- Compose slices required: $composeSlicesRequired")
 $markdown.Add("- App frames: $frameCount")
+$markdown.Add("- App frames required: $framesRequired")
 $markdown.Add("- Frames missing expected duration: $expectedFrameMissingCount")
 $markdown.Add("- Main/Render thread rows: $threadCount")
 if ($failures.Count -gt 0) {

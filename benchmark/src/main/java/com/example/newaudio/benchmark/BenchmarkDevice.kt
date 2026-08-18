@@ -397,8 +397,11 @@ internal class BenchmarkDevice(
         queue.add(root)
         while (queue.isNotEmpty()) {
             val current = queue.removeFirst()
-            val matches = current.viewIdResourceName == resourceName ||
+            val matchesResourceName = !resourceName.isNullOrBlank() &&
+                current.viewIdResourceName == resourceName
+            val matchesContentDescription = !contentDescription.isNullOrBlank() &&
                 current.contentDescription?.toString() == contentDescription
+            val matches = matchesResourceName || matchesContentDescription
             if (matches) {
                 var candidate: AccessibilityNodeInfo? = current
                 while (candidate != null && !candidate.isClickable) {

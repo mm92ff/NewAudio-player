@@ -24,7 +24,9 @@ internal class GalleryScrollProbe(
         val deadline = System.currentTimeMillis() + BenchmarkConfig.DEFAULT_TIMEOUT_MS
         while (BenchmarkConfig.FIRST_VIDEO !in visibleVideoNames() &&
             System.currentTimeMillis() < deadline) {
-            gallery.scroll(Direction.UP, 1.0f)
+            // Item zero is the reachability spacer. Once the grid is at its absolute
+            // start, move forward past that spacer until the first media row is visible.
+            gallery.scroll(Direction.DOWN, 1.0f)
             ui.device.waitForIdle(100L)
         }
         if (BenchmarkConfig.FIRST_VIDEO !in visibleVideoNames()) {

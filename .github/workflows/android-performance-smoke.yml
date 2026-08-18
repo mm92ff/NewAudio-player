@@ -46,7 +46,8 @@ jobs:
             newaudio-performance-api35 \
             35 \
             /tmp/performance-emulator.log \
-            "$font_scale"
+            "$font_scale" \
+            default
       - name: Run complete one-iteration metric class
         shell: pwsh
         run: |
@@ -99,7 +100,9 @@ jobs:
           bash ./scripts/start-ci-emulator.sh \
             newaudio-series-api35 \
             35 \
-            /tmp/series-emulator.log
+            /tmp/series-emulator.log \
+            1.00 \
+            default
       - name: Run independent full metric series ${{ matrix.series }}
         shell: pwsh
         run: |
@@ -151,7 +154,8 @@ jobs:
             newaudio-large-font-api35 \
             35 \
             /tmp/large-font-emulator.log \
-            1.30
+            1.30 \
+            default
       - name: Run full default metric class with large font
         shell: pwsh
         run: |
@@ -218,7 +222,9 @@ jobs:
           bash ./scripts/start-ci-emulator.sh \
             newaudio-trace-api35 \
             35 \
-            /tmp/trace-emulator.log
+            /tmp/trace-emulator.log \
+            1.00 \
+            default
       - name: Install pinned Perfetto Trace Processor wrapper
         run: |
           curl -fsSL \

@@ -3,10 +3,10 @@
 set -euo pipefail
 
 usage() {
-    echo "Usage: $0 <avd-name> <api-level> <log-path> [font-scale]" >&2
+    echo "Usage: $0 <avd-name> <api-level> <log-path> [font-scale] [image-tag]" >&2
 }
 
-if [ "$#" -lt 3 ] || [ "$#" -gt 4 ]; then
+if [ "$#" -lt 3 ] || [ "$#" -gt 5 ]; then
     usage
     exit 64
 fi
@@ -20,6 +20,7 @@ avd_name=$1
 api_level=$2
 emulator_log=$3
 font_scale=${4:-1.00}
+image_tag=${5:-google_apis}
 
 if [[ ! "$avd_name" =~ ^[A-Za-z0-9._-]+$ ]]; then
     echo "Invalid AVD name: $avd_name" >&2
@@ -37,6 +38,10 @@ if [[ ! "$font_scale" =~ ^[0-9]+([.][0-9]+)?$ ]]; then
     echo "Invalid font scale: $font_scale" >&2
     exit 64
 fi
+if [[ ! "$image_tag" =~ ^[A-Za-z0-9._-]+$ ]]; then
+    echo "Invalid Android system image tag: $image_tag" >&2
+    exit 64
+fi
 
 : "${ANDROID_HOME:?ANDROID_HOME must be set}"
 : "${HOME:?HOME must be set}"
@@ -50,7 +55,7 @@ readonly emulator_port="5554"
 readonly emulator_serial="emulator-${emulator_port}"
 readonly emulator_cores="2"
 readonly emulator_memory_mb="2048"
-readonly system_image="system-images;android-${api_level};google_apis;x86_64"
+readonly system_image="system-images;android-${api_level};${image_tag};x86_64"
 
 sudo chmod 666 /dev/kvm
 
@@ -144,5 +149,10 @@ adb -s "$emulator_serial" shell settings put system font_scale "$font_scale"
 # software rendering it can otherwise raise an unrelated ANR dialog that blocks
 # the subsequent instrumentation activity from becoming visible.
 adb -s "$emulator_serial" shell am start -W -a android.settings.SETTINGS >/dev/null
+if adb -s "$emulator_serial" shell pm path com.google.android.apps.nexuslauncher 2>/dev/null |
+    grep -q '^package:'; then
+    adb -s "$emulator_serial" shell am force-stop com.google.android.apps.nexuslauncher
+fi
+adb -s "$emulator_serial" get-state | grep -Fqx device
 
 echo "Android API $api_level is ready on $emulator_serial with font scale $font_scale."

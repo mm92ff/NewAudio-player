@@ -49,6 +49,7 @@ jobs:
           ./performance/scripts/verify-provenance-contract.ps1
           ./performance/scripts/verify-runner-contracts.ps1
           ./performance/scripts/normalize-metrics.ps1 -SelfTest
+          ./performance/scripts/merge-metric-shards.ps1 -SelfTest
           ./performance/scripts/aggregate-series.ps1 -SelfTest
           ./performance/scripts/compare-baseline.ps1 -SelfTest
           ./performance/scripts/summarize-trace.ps1 -SelfTest

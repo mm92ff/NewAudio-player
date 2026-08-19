@@ -82,8 +82,6 @@ jobs:
             class: com.example.newaudio.benchmark.StartupBenchmark
           - id: navigation
             class: com.example.newaudio.benchmark.NavigationBenchmark
-          - id: browser
-            class: com.example.newaudio.benchmark.BrowserRenderingBenchmark
           - id: audio
             class: com.example.newaudio.benchmark.AudioPlaybackBenchmark
           - id: video
@@ -123,6 +121,84 @@ jobs:
             performance/results/**
             /tmp/series-emulator.log
 
+  api35-default-browser-series-shards:
+    needs: api35-metric-matrix
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    strategy:
+      fail-fast: false
+      matrix:
+        series: [1, 2, 3]
+        metric-shard: [lists, gallery-cold, gallery-warm, folders-playlists]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+          cache: gradle
+      - name: Create controlled API 35 browser-series AVD
+        run: |
+          bash ./scripts/start-ci-emulator.sh \
+            newaudio-browser-series-api35 \
+            35 \
+            /tmp/browser-series-emulator.log \
+            1.00 \
+            default
+      - name: Run browser series ${{ matrix.series }} shard ${{ matrix.metric-shard }}
+        shell: pwsh
+        run: |
+          ./performance/scripts/run-benchmarks.ps1 `
+            -TestClass 'com.example.newaudio.benchmark.BrowserRenderingBenchmark' `
+            -MetricShard '${{ matrix.metric-shard }}' `
+            -DeviceRoleId 'api35-default-series'
+      - name: Upload browser-series shard evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: newaudio-api35-browser-shard-${{ matrix.series }}-${{ matrix.metric-shard }}
+          if-no-files-found: warn
+          retention-days: 14
+          path: |
+            benchmark/build/outputs/androidTest-results/**
+            benchmark/build/outputs/connected_android_test_additional_output/**
+            benchmark/build/reports/androidTests/**
+            performance/results/**
+            /tmp/browser-series-emulator.log
+
+  assemble-default-browser-series:
+    needs: api35-default-browser-series-shards
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        series: [1, 2, 3]
+    steps:
+      - uses: actions/checkout@v4
+      - name: Download one logical browser series
+        uses: actions/download-artifact@v4
+        with:
+          pattern: newaudio-api35-browser-shard-${{ matrix.series }}-*
+          path: browser-shard-input
+      - name: Merge four browser shards into one independent candidate
+        shell: pwsh
+        run: |
+          $candidates = @(Get-ChildItem browser-shard-input -Recurse -Filter candidate-series.json -File)
+          if ($candidates.Count -ne 4) {
+            throw "Expected four browser shard candidates; found $($candidates.Count)."
+          }
+          ./performance/scripts/merge-metric-shards.ps1 `
+            -CandidatePath $candidates.FullName `
+            -RunId 'github-${{ github.run_id }}-browser-series-${{ matrix.series }}' `
+            -ExpectedShardCount 4 `
+            -ExpectedJourneyCount 13 `
+            -OutputPath 'performance/results/ci-browser-series/candidate-series.json'
+      - uses: actions/upload-artifact@v4
+        with:
+          name: newaudio-api35-series-${{ matrix.series }}-browser
+          retention-days: 14
+          path: performance/results/ci-browser-series/candidate-series.json
+
   api35-large-font-default-matrix:
     needs: api35-metric-matrix
     runs-on: ubuntu-latest
@@ -135,8 +211,6 @@ jobs:
             class: com.example.newaudio.benchmark.StartupBenchmark
           - id: navigation
             class: com.example.newaudio.benchmark.NavigationBenchmark
-          - id: browser
-            class: com.example.newaudio.benchmark.BrowserRenderingBenchmark
           - id: audio
             class: com.example.newaudio.benchmark.AudioPlaybackBenchmark
           - id: video
@@ -176,8 +250,54 @@ jobs:
             performance/results/**
             /tmp/large-font-emulator.log
 
+  api35-large-font-browser-shards:
+    needs: api35-metric-matrix
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    strategy:
+      fail-fast: false
+      matrix:
+        metric-shard: [lists, gallery-cold, gallery-warm, folders-playlists]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+          cache: gradle
+      - name: Create controlled large-font browser AVD
+        run: |
+          bash ./scripts/start-ci-emulator.sh \
+            newaudio-large-font-browser-api35 \
+            35 \
+            /tmp/large-font-browser-emulator.log \
+            1.30 \
+            default
+      - name: Run large-font browser shard ${{ matrix.metric-shard }}
+        shell: pwsh
+        run: |
+          ./performance/scripts/run-benchmarks.ps1 `
+            -TestClass 'com.example.newaudio.benchmark.BrowserRenderingBenchmark' `
+            -MetricShard '${{ matrix.metric-shard }}' `
+            -DeviceRoleId 'api35-large-font-default'
+      - name: Upload large-font browser shard evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: newaudio-api35-large-font-browser-${{ matrix.metric-shard }}
+          if-no-files-found: warn
+          retention-days: 14
+          path: |
+            benchmark/build/outputs/androidTest-results/**
+            benchmark/build/outputs/connected_android_test_additional_output/**
+            benchmark/build/reports/androidTests/**
+            performance/results/**
+            /tmp/large-font-browser-emulator.log
+
   aggregate-default-series:
-    needs: api35-default-independent-series
+    needs:
+      - api35-default-independent-series
+      - assemble-default-browser-series
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
@@ -189,7 +309,7 @@ jobs:
         with:
           pattern: newaudio-api35-series-*-${{ matrix.benchmark-id }}
           path: series-input
-          merge-multiple: true
+          merge-multiple: false
       - name: Aggregate three independent run batches
         shell: pwsh
         run: |
@@ -271,7 +391,10 @@ jobs:
     needs:
       - api35-metric-matrix
       - api35-default-independent-series
+      - api35-default-browser-series-shards
+      - assemble-default-browser-series
       - api35-large-font-default-matrix
+      - api35-large-font-browser-shards
       - aggregate-default-series
       - api35-full-compose-trace
     runs-on: ubuntu-latest

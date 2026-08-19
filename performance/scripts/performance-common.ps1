@@ -119,10 +119,10 @@ function Test-NewAudioBaselineEligibility {
 function Assert-NewAudioAdditionalGradleArguments {
     param([string[]]$Arguments)
 
-    $owned = '(?i)(android\.testInstrumentationRunnerArguments\.(class|newaudio\.(?:benchmark\.iterations|trace\.shard))|android\.injected\.device\.serial|androidx\.benchmark\.fullTracing\.enable|fullTracing(?:\.enable)?\s*=|-PfullTracing=)'
+    $owned = '(?i)(android\.testInstrumentationRunnerArguments\.(class|newaudio\.(?:benchmark\.(?:iterations|shard)|trace\.shard))|android\.injected\.device\.serial|androidx\.benchmark\.fullTracing\.enable|fullTracing(?:\.enable)?\s*=|-PfullTracing=)'
     $conflicts = @($Arguments | Where-Object { $_ -match $owned })
     if ($conflicts.Count -gt 0) {
-        throw "AdditionalGradleArguments may not override runner-owned class, iteration, or tracing settings: $($conflicts -join ', ')"
+        throw "AdditionalGradleArguments may not override runner-owned class, iteration, shard, or tracing settings: $($conflicts -join ', ')"
     }
     $sensitive = @($Arguments | Where-Object {
         $_ -match '(?i)(?:password|passwd|secret|token|api[-_.]?key|credential|signing|keystore)\s*=' -or

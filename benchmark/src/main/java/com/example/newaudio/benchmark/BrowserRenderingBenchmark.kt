@@ -4,9 +4,12 @@ import androidx.benchmark.macro.FrameTimingMetric
 import androidx.benchmark.macro.junit4.MacrobenchmarkRule
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.filters.LargeTest
+import androidx.test.platform.app.InstrumentationRegistry
+import org.junit.Assume
 import org.junit.Before
 import org.junit.Rule
 import org.junit.Test
+import org.junit.rules.TestName
 import org.junit.runner.RunWith
 
 @LargeTest
@@ -15,8 +18,20 @@ class BrowserRenderingBenchmark {
     @get:Rule
     val benchmarkRule = MacrobenchmarkRule()
 
+    @get:Rule
+    val testName = TestName()
+
     @Before
     fun seedFixtures() {
+        val requestedShard = InstrumentationRegistry.getArguments().getString(METRIC_SHARD_ARGUMENT)
+        if (!requestedShard.isNullOrBlank()) {
+            val shardMethods = METRIC_SHARDS[requestedShard]
+                ?: error("Unknown metric shard '$requestedShard'")
+            Assume.assumeTrue(
+                "${testName.methodName} is outside metric shard '$requestedShard'",
+                testName.methodName in shardMethods
+            )
+        }
         BenchmarkFixtures().seedAll()
     }
 
@@ -142,5 +157,33 @@ class BrowserRenderingBenchmark {
         }
     ) {
         GalleryScrollProbe().scrollForwardAndBack(scenario)
+    }
+
+    private companion object {
+        const val METRIC_SHARD_ARGUMENT = "newaudio.benchmark.shard"
+
+        val METRIC_SHARDS = mapOf(
+            "lists" to setOf(
+                "br01AudioListScroll",
+                "br02AudioListIdleWithMiniPlayer",
+                "br03VideoListScroll"
+            ),
+            "gallery-cold" to setOf(
+                "br04VideoGalleryTwoColumns",
+                "br04VideoGalleryThreeColumns",
+                "br04VideoGalleryFourColumns"
+            ),
+            "gallery-warm" to setOf(
+                "br04VideoGalleryTwoColumnsWarm",
+                "br04VideoGalleryThreeColumnsWarm",
+                "br04VideoGalleryFourColumnsWarm"
+            ),
+            "folders-playlists" to setOf(
+                "br05NestedFolderColdCache",
+                "br06NestedFolderWarmCache",
+                "pl01AudioPlaylistScroll",
+                "pl02VideoPlaylistScroll"
+            )
+        )
     }
 }

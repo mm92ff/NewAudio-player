@@ -66,9 +66,26 @@ Weitere vorgesehene Klassen sind `NavigationBenchmark`,
 JUnit-Format `Klasse#Methode` adressieren. Zusätzliche Gradle-Argumente werden
 als einzelne Werte über `-AdditionalGradleArguments` übergeben. Das Skript
 weist Full-Tracing-Argumente im Metrikmodus ausdrücklich zurück.
-Andere Testklassen werden nicht akzeptiert. Klasse, Iterationszahl und
+Andere Testklassen werden nicht akzeptiert. Klasse, Iterationszahl, Shard und
 Tracing-Schalter sind runner-eigene Argumente und können nicht über
 `-AdditionalGradleArguments` überschrieben werden.
+
+Die vollständige `BrowserRenderingBenchmark`-Klasse kann für lange CI-Läufe
+auf frische Emulatoren verteilt werden. `-MetricShard` akzeptiert dafür
+`lists`, `gallery-cold`, `gallery-warm` oder `folders-playlists` und ist nicht
+mit einem einzelnen `Klasse#Methode`-Selektor kombinierbar:
+
+```powershell
+.\performance\scripts\run-benchmarks.ps1 `
+  -TestClass com.example.newaudio.benchmark.BrowserRenderingBenchmark `
+  -MetricShard gallery-cold
+```
+
+Vier erfolgreiche Shard-Kandidaten werden mit
+`merge-metric-shards.ps1` zu genau einem logischen, unabhängigen Browser-Batch
+zusammengeführt. Das Skript verlangt vier disjunkte Kandidaten und alle 13
+versionierten Browser-Journeys; unvollständige oder überlappende Shards werden
+abgewiesen.
 
 Für einen reinen Journey-Smoke kann die Iterationszahl explizit reduziert
 werden:
@@ -264,7 +281,9 @@ mit einer Iteration in Default- und Large-Font-Profil aus. Zusätzlich erzeugt
 er erst nach grünem Smoke vollständige Large-Font-Defaults, drei unabhängige
 vollständige Default-Serien, aggregiert diese und erfasst die vollständige
 `TraceCaptureTest`-Matrix mit drei Iterationen pro Journey. Ein abschließender
-Gitleaks-Job scannt alle heruntergeladenen Performance-Artefakte. Diese
+Gitleaks-Job scannt alle heruntergeladenen Performance-Artefakte. Die langen
+Browser-Vollserien laufen in vier frischen Emulator-Shards und werden vor der
+Aggregation pro Serie wieder zu einem Kandidaten zusammengesetzt. Diese
 Emulatorläufe sind ausschließlich Struktur- und Journey-Gates.
 
 Ein absichtlich roter Diagnosepfad prüft die Fehlerartefaktkette. Er ist

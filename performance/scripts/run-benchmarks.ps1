@@ -5,6 +5,8 @@ param(
     [string[]]$AdditionalGradleArguments = @(),
     [string]$CacheState,
     [string]$DeviceRoleId,
+    [ValidateSet('lists', 'gallery-cold', 'gallery-warm', 'folders-playlists')]
+    [string]$MetricShard,
     [ValidateRange(1, 10)][int]$Iterations,
     [switch]$AllowDirty,
     [switch]$DryRun,
@@ -141,6 +143,11 @@ if (-not [string]::IsNullOrWhiteSpace($resolvedMethodName) -and
     $resolvedMethodName -notin $metricMethodsByClass[$resolvedClassName]) {
     throw "Metric method '$resolvedClassName#$resolvedMethodName' has no versioned journey contract."
 }
+if (-not [string]::IsNullOrWhiteSpace($MetricShard) -and
+    ($resolvedClassName -ne 'BrowserRenderingBenchmark' -or
+        -not [string]::IsNullOrWhiteSpace($resolvedMethodName))) {
+    throw 'MetricShard is only valid for the complete BrowserRenderingBenchmark class.'
+}
 if ($PSBoundParameters.ContainsKey('Iterations')) {
     $maximumIterations = if ($resolvedClassName -eq 'StartupBenchmark') { 10 } else { 5 }
     if ($Iterations -gt $maximumIterations) {
@@ -164,6 +171,9 @@ if (-not [string]::IsNullOrWhiteSpace($env:ANDROID_SERIAL)) {
 }
 if ($PSBoundParameters.ContainsKey('Iterations')) {
     $arguments += "-Pandroid.testInstrumentationRunnerArguments.newaudio.benchmark.iterations=$Iterations"
+}
+if (-not [string]::IsNullOrWhiteSpace($MetricShard)) {
+    $arguments += "-Pandroid.testInstrumentationRunnerArguments.newaudio.benchmark.shard=$MetricShard"
 }
 
 if ($DryRun) {
@@ -221,6 +231,7 @@ if ($gradleExitCode -ne 0) {
         testClass = $TestClass
         resolvedTestClass = $resolvedClassName
         resolvedTestMethod = $resolvedMethodName
+        metricShard = if ([string]::IsNullOrWhiteSpace($MetricShard)) { $null } else { $MetricShard }
         gradleTask = ':benchmark:connectedBenchmarkAndroidTest'
         iterationOverride = $iterationOverride
         requestedIterations = if ($iterationOverride) { $Iterations } else { $null }
@@ -286,6 +297,7 @@ $metadata = [ordered]@{
     testClass = $TestClass
     resolvedTestClass = $resolvedClassName
     resolvedTestMethod = $resolvedMethodName
+    metricShard = if ([string]::IsNullOrWhiteSpace($MetricShard)) { $null } else { $MetricShard }
     gradleTask = ':benchmark:connectedBenchmarkAndroidTest'
     iterationOverride = $PSBoundParameters.ContainsKey('Iterations')
     requestedIterations = if ($PSBoundParameters.ContainsKey('Iterations')) { $Iterations } else { $null }

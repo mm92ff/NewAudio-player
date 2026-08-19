@@ -8,6 +8,7 @@ param(
     [ValidateSet('lists', 'gallery-cold', 'gallery-warm', 'folders-playlists')]
     [string]$MetricShard,
     [ValidateRange(1, 10)][int]$Iterations,
+    [ValidateRange(0, 1)][int]$RetryCount = 0,
     [switch]$AllowDirty,
     [switch]$DryRun,
     [switch]$CheckPrerequisites
@@ -194,27 +195,32 @@ if ($CheckPrerequisites) {
     return
 }
 
-$startedAt = [DateTime]::UtcNow
-$runId = 'metrics-{0}' -f $startedAt.ToString('yyyyMMdd-HHmmssfff')
-$runDirectory = Join-Path $safeOutput $runId
-$rawDirectory = Join-Path $runDirectory 'raw'
-New-Item -ItemType Directory -Path $rawDirectory -Force | Out-Null
-
 $adb = Get-AdbPath
 $environment = Get-NewAudioRunEnvironment -AdbPath $adb -RepositoryRoot $repositoryRoot `
     -Mode 'metrics' -CacheState $resolvedCacheState -DeviceRoleId $DeviceRoleId
-$gradleLogPath = Join-Path $runDirectory 'gradle-output.log'
-$gradleExitCode = 0
-$testOutputSnapshot = Get-NewAudioFileSnapshot -SourceRoot $benchmarkOutputRoot
+$attempt = 0
+$priorFailureDirectories = [Collections.Generic.List[string]]::new()
+do {
+    $attempt++
+    $startedAt = [DateTime]::UtcNow
+    $runId = 'metrics-{0}' -f $startedAt.ToString('yyyyMMdd-HHmmssfff')
+    $runDirectory = Join-Path $safeOutput $runId
+    $rawDirectory = Join-Path $runDirectory 'raw'
+    New-Item -ItemType Directory -Path $rawDirectory -Force | Out-Null
 
-Push-Location $repositoryRoot
-try {
-    & $gradleWrapper @arguments 2>&1 | Tee-Object -FilePath $gradleLogPath
-    $gradleExitCode = $LASTEXITCODE
-} finally {
-    Pop-Location
-}
-if ($gradleExitCode -ne 0) {
+    $gradleLogPath = Join-Path $runDirectory 'gradle-output.log'
+    $gradleExitCode = 0
+    $testOutputSnapshot = Get-NewAudioFileSnapshot -SourceRoot $benchmarkOutputRoot
+
+    Push-Location $repositoryRoot
+    try {
+        & $gradleWrapper @arguments 2>&1 | Tee-Object -FilePath $gradleLogPath
+        $gradleExitCode = $LASTEXITCODE
+    } finally {
+        Pop-Location
+    }
+    if ($gradleExitCode -eq 0) { break }
+
     $recoveredOutputs = @(Copy-NewAudioCurrentTestOutputs -SourceRoot $benchmarkOutputRoot `
         -DestinationRoot (Join-Path $runDirectory 'additional-test-output') -StartedAtUtc $startedAt `
         -Snapshot $testOutputSnapshot)
@@ -238,6 +244,12 @@ if ($gradleExitCode -ne 0) {
         baselineEligible = $false
         repository = $provenance
         environment = $environment
+        retry = [ordered]@{
+            configuredRetryCount = $RetryCount
+            attempt = $attempt
+            maximumAttempts = 1 + $RetryCount
+            willRetry = $attempt -le $RetryCount
+        }
         gradleLog = [IO.Path]::GetFileName($gradleLogPath)
         resultDirectory = $runDirectory.Substring($repositoryRoot.Length).TrimStart('\', '/').Replace('\', '/')
         runner = [ordered]@{
@@ -250,9 +262,16 @@ if ($gradleExitCode -ne 0) {
     $failureJson = $failureMetadata | ConvertTo-Json -Depth 10
     $failureJson | Set-Content -LiteralPath (Join-Path $runDirectory 'run-failure.json') -Encoding utf8
     $failureJson | Set-Content -LiteralPath (Join-Path $runDirectory 'run-manifest.json') -Encoding utf8
-    Write-Error "Metric benchmark failed with exit code $gradleExitCode. Failure artifacts: $runDirectory" -ErrorAction Continue
+    $relativeFailureDirectory = $runDirectory.Substring($repositoryRoot.Length).TrimStart('\', '/').Replace('\', '/')
+    $priorFailureDirectories.Add($relativeFailureDirectory)
+
+    if ($attempt -le $RetryCount) {
+        Write-Warning "Metric benchmark attempt $attempt failed with exit code $gradleExitCode. Retrying once; failure artifacts: $runDirectory"
+        continue
+    }
+    Write-Error "Metric benchmark failed after $attempt attempt(s) with exit code $gradleExitCode. Failure artifacts: $runDirectory" -ErrorAction Continue
     exit $gradleExitCode
-}
+} while ($attempt -le $RetryCount)
 
 $artifacts = @()
 if (Test-Path -LiteralPath $benchmarkOutputRoot -PathType Container) {
@@ -302,6 +321,12 @@ $metadata = [ordered]@{
     iterationOverride = $PSBoundParameters.ContainsKey('Iterations')
     requestedIterations = if ($PSBoundParameters.ContainsKey('Iterations')) { $Iterations } else { $null }
     allowDirty = [bool]$AllowDirty
+    retry = [ordered]@{
+        configuredRetryCount = $RetryCount
+        successfulAttempt = $attempt
+        priorFailedAttempts = $priorFailureDirectories.Count
+        priorFailureDirectories = @($priorFailureDirectories)
+    }
     artifactCount = $artifacts.Count
     artifacts = @($artifactMetadata)
     environment = $environment

@@ -100,6 +100,17 @@ werden:
 Benchmark festgelegten Seriengrößen (Startup 10, Metrik 5, Diagnose-Trace 3).
 Reduzierte Läufe sind nicht baselinefähig.
 
+Der Metrikrunner kann einen fehlgeschlagenen Gradle-/Instrumentation-Lauf mit
+`-RetryCount 1` genau einmal vollständig wiederholen. Jeder fehlgeschlagene
+Versuch behält sein eigenes `run-failure.json`, Diagnoseartefakte und
+Run-Verzeichnis; nur ein danach vollständig erfolgreicher Versuch erzeugt
+`candidate-series.json`. Das erfolgreiche Manifest dokumentiert den Retry und
+verweist auf die vorherigen Fehlerverzeichnisse. Mehr als ein automatischer
+Retry ist absichtlich nicht erlaubt, damit reproduzierbare App- oder
+Benchmarkfehler weiterhin zuverlässig rot bleiben. Die Performance-CI nutzt
+diesen einmaligen Retry für transiente Emulator-, Codec- und
+Instrumentation-Aussetzer.
+
 ## Diagnosemodus mit Full Compose Tracing
 
 Der Diagnosemodus aktiviert

@@ -54,6 +54,7 @@ jobs:
           ./performance/scripts/run-benchmarks.ps1 `
             -TestClass '${{ matrix.benchmark.class }}' `
             -Iterations 1 `
+            -RetryCount 1 `
             -DeviceRoleId 'api35-${{ matrix.display-profile }}'
       - name: Upload metric evidence
         if: always()
@@ -106,6 +107,7 @@ jobs:
         run: |
           ./performance/scripts/run-benchmarks.ps1 `
             -TestClass '${{ matrix.benchmark.class }}' `
+            -RetryCount 1 `
             -DeviceRoleId 'api35-default-series'
       - name: Upload independent series evidence
         if: always()
@@ -151,6 +153,7 @@ jobs:
           ./performance/scripts/run-benchmarks.ps1 `
             -TestClass 'com.example.newaudio.benchmark.BrowserRenderingBenchmark' `
             -MetricShard '${{ matrix.metric-shard }}' `
+            -RetryCount 1 `
             -DeviceRoleId 'api35-default-series'
       - name: Upload browser-series shard evidence
         if: always()
@@ -235,6 +238,7 @@ jobs:
         run: |
           ./performance/scripts/run-benchmarks.ps1 `
             -TestClass '${{ matrix.benchmark.class }}' `
+            -RetryCount 1 `
             -DeviceRoleId 'api35-large-font-default'
       - name: Upload large-font evidence
         if: always()
@@ -279,6 +283,7 @@ jobs:
           ./performance/scripts/run-benchmarks.ps1 `
             -TestClass 'com.example.newaudio.benchmark.BrowserRenderingBenchmark' `
             -MetricShard '${{ matrix.metric-shard }}' `
+            -RetryCount 1 `
             -DeviceRoleId 'api35-large-font-default'
       - name: Upload large-font browser shard evidence
         if: always()

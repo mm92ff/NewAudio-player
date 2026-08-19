@@ -22,6 +22,7 @@ function Assert-Rejected {
 
 & $metricRunner `
     -TestClass 'com.example.newaudio.benchmark.StartupBenchmark#st01ColdStartupToBrowserReady' `
+    -RetryCount 1 `
     -AllowDirty `
     -DryRun | Out-Null
 & $metricRunner `
@@ -106,6 +107,13 @@ Assert-Rejected -Label 'an iteration count above the metric contract' -Action {
     & $metricRunner `
         -TestClass 'com.example.newaudio.benchmark.AudioPlaybackBenchmark' `
         -Iterations 6 `
+        -AllowDirty `
+        -DryRun
+}
+Assert-Rejected -Label 'more than one automatic metric retry' -Action {
+    & $metricRunner `
+        -TestClass 'com.example.newaudio.benchmark.AudioPlaybackBenchmark' `
+        -RetryCount 2 `
         -AllowDirty `
         -DryRun
 }
